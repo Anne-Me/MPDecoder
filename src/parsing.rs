@@ -3,10 +3,8 @@ use std::io::{BufReader, Error, BufRead};
 use std::vec;
 use sscanf::sscanf;
 
-pub struct TannerGraph {
-    pub v_nodes: Vec<Vec<usize>>, // for each variable node v, the connections to the c side
-    pub c_nodes: Vec<Vec<usize>>, // for each check node c, hte connections to the v side
-}
+use crate::tanner_graph::TannerGraph;
+
 
 
 pub fn alist_to_tanner(file_path: &str) -> Result<TannerGraph, Error> {
@@ -31,6 +29,8 @@ pub fn alist_to_tanner(file_path: &str) -> Result<TannerGraph, Error> {
 
     // create tanner graph with n,m
     let mut tanner = TannerGraph {
+        n: n,
+        m: m,
         v_nodes: vec![Vec::new();n],
         c_nodes: vec![Vec::new();m],
     };
@@ -74,8 +74,7 @@ fn collect_ints(next_line: &str) -> Vec<usize> {
 #[cfg(test)]
 mod test {
     use std::assert_eq;
-
-use super::*;
+    use super::*;
 
     #[test]
     fn test_parsing_hamming() {
