@@ -1,0 +1,18 @@
+# Build output
+/target
+
+# Backup files from rustfmt
+**/*.rs.bk
+
+# Debug info (MSVC)
+*.pdb
+
+# Editors / IDEs
+.idea/
+.vscode/
+*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
