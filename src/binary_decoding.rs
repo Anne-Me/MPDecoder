@@ -1,17 +1,36 @@
 use std::collections::HashMap;
 use std::vec;
+use std::fmt;
 
 use crate::tanner_graph::TannerGraph;
 use crate::tanner_graph::Bit;
 
+#[derive(Debug)]
+pub enum DecodeError {
+    WrongLength { expected: usize, got: usize },
+    NotConverged { last_estimate: Vec<Bit> },
+}
+
+impl fmt::Display for DecodeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            DecodeError::WrongLength { expected, got } =>
+                write!(f, "wrong input length: expected {expected}, got {got}"),
+            DecodeError::NotConverged { .. } =>
+                write!(f, "decoder did not converge"),
+        }
+    }
+}
+
+impl std::error::Error for DecodeError {}
 
 pub struct Decoder {
     tanner: TannerGraph
 }
 
 impl Decoder {
-    pub fn mp_decode(&self, syndrome: &Vec<Bit>, max_rounds: usize) -> Vec<Bit> {
-        let mut correction = vec![Bit::ZERO;syndrome.len()];
+    pub fn gallager_decode(&self, syndrome: &Vec<Bit>, max_rounds: usize) -> Result<Vec<Bit>, DecodeError> {
+        let mut correction = vec![Bit::ZERO; self.tanner.n];
         
         // incoming messages are stored as tuple (from,value)
         let mut v_in_messages = vec![HashMap::new(); self.tanner.n];
@@ -30,12 +49,12 @@ impl Decoder {
 
             // check candidate correction term
             if self.check_parity_equations(&syndrome, &correction) {
-                return correction;
+               return Ok(correction)
             }
 
             // create outgoing c messages
             for c in 0..self.tanner.m {
-                for (jkey,jval) in &c_in_messages[c] {
+                for (jkey,_jval) in &c_in_messages[c] {
                     // outgoing message is the xor of all messages from edges that are not j and xor the syndrome bit
                     let mut j_message = syndrome[c];
                     for (xkey,xval) in &c_in_messages[c] { // number of a node
@@ -77,8 +96,9 @@ impl Decoder {
         }
 
         // RETURN ERROR
-        return correction
+        return Err(DecodeError::NotConverged { last_estimate: correction })
     }
+
 
     fn check_parity_equations(&self, syndrome: &Vec<Bit>, correction: &Vec<Bit>) -> bool {
         for check in 0..self.tanner.m {
@@ -180,4 +200,20 @@ mod test {
         assert!(dec.check_parity_equations(&syndrome, &correction));
     }
 
+    #[test]
+    fn decode_success_1() {
+        let dec = hamming_7_4();
+
+        // all 0 error and syndrome
+        let mut syndrome = vec![Bit::ZERO;dec.tanner.m];
+        let mut exp_correction = vec![Bit::ZERO;dec.tanner.n];
+        let res = dec.gallager_decode(&syndrome, 5).unwrap();
+        assert_eq!(res, exp_correction);
+
+        // syndrome (0,1,0), expected correction (0,0,0,0,0,1,0)
+        syndrome[1] = Bit::ONE;
+        exp_correction[5] = Bit::ONE;
+        let res1 = dec.gallager_decode(&syndrome, 5).unwrap();
+        assert_eq!(res1, exp_correction);
+    }
 }

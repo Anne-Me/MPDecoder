@@ -68,6 +68,7 @@ fn collect_ints(next_line: &str) -> Vec<usize> {
             .expect("Not an integer")
         })
         .take_while(|&value| {value != 0})
+        .map(|value| {value - 1})// start indexing at 0 to make vector indexing easier in decoding
         .collect::<Vec<usize>>()
 }
 
@@ -81,16 +82,16 @@ mod test {
         let tanner = alist_to_tanner(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/testfiles/hamming74.txt")).expect("error");
         assert_eq!(tanner.v_nodes.len(), 7);
         assert_eq!(tanner.c_nodes.len(), 3);
-        assert_eq!(tanner.c_nodes[0], [1,2,4,5]);
-        assert_eq!(tanner.c_nodes[1], [1,3,4,6]);
-        assert_eq!(tanner.c_nodes[2], [2,3,4,7]);
-        assert_eq!(tanner.v_nodes[0], [1,2]);
-        assert_eq!(tanner.v_nodes[1], [1,3]);
-        assert_eq!(tanner.v_nodes[2], [2,3]);
-        assert_eq!(tanner.v_nodes[3], [1,2,3]);
-        assert_eq!(tanner.v_nodes[4], [1]);
-        assert_eq!(tanner.v_nodes[5], [2]);
-        assert_eq!(tanner.v_nodes[6], [3]);
+        assert_eq!(tanner.c_nodes[0], [0,1,3,4]);
+        assert_eq!(tanner.c_nodes[1], [0,2,3,5]);
+        assert_eq!(tanner.c_nodes[2], [1,2,3,6]);
+        assert_eq!(tanner.v_nodes[0], [0,1]);
+        assert_eq!(tanner.v_nodes[1], [0,2]);
+        assert_eq!(tanner.v_nodes[2], [1,2]);
+        assert_eq!(tanner.v_nodes[3], [0,1,2]);
+        assert_eq!(tanner.v_nodes[4], [0]);
+        assert_eq!(tanner.v_nodes[5], [1]);
+        assert_eq!(tanner.v_nodes[6], [2]);
     }
 
     #[test]
@@ -98,12 +99,12 @@ mod test {
         let tanner = alist_to_tanner(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/testfiles/96-3-963")).expect("error");
         assert_eq!(tanner.v_nodes.len(), 96);
         assert_eq!(tanner.c_nodes.len(), 48);
-        assert_eq!(tanner.v_nodes[0], [10,30,40]);
-        assert_eq!(tanner.v_nodes[49], [4,23,44]);
-        assert_eq!(tanner.v_nodes[95], [10,19,34]);
-        assert_eq!(tanner.c_nodes[0], [8,20,36,56,80,81]);
-        assert_eq!(tanner.c_nodes[23], [7,29,33,62,69,95]);
-        assert_eq!(tanner.c_nodes[47], [13,24,42,62,80,94]);
+        assert_eq!(tanner.v_nodes[0], [9,29,39]);
+        assert_eq!(tanner.v_nodes[49], [3,22,43]);
+        assert_eq!(tanner.v_nodes[95], [9,18,33]);
+        assert_eq!(tanner.c_nodes[0], [7,19,35,55,79,80]);
+        assert_eq!(tanner.c_nodes[23], [6,28,32,61,68,94]);
+        assert_eq!(tanner.c_nodes[47], [12,23,41,61,79,93]);
     }
 
     #[test]
@@ -111,12 +112,12 @@ mod test {
         let tanner = alist_to_tanner(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/testfiles/816-4-383")).expect("error");
         assert_eq!(tanner.v_nodes.len(), 816);
         assert_eq!(tanner.c_nodes.len(), 408);
-        assert_eq!(tanner.v_nodes[0], [83,145,299,395]);
-        assert_eq!(tanner.v_nodes[409], [19,194,270,376]);
-        assert_eq!(tanner.v_nodes[815], [35,184,304,339]);
-        assert_eq!(tanner.c_nodes[0], [75,173,209,354,412,569,648,754]);
-        assert_eq!(tanner.c_nodes[203], [50,152,305,379,478,611,624,755]);
-        assert_eq!(tanner.c_nodes[407], [56,160,265,382,431,551,629,807]);
+        assert_eq!(tanner.v_nodes[0], [82,144,298,394]);
+        assert_eq!(tanner.v_nodes[409], [18,193,269,375]);
+        assert_eq!(tanner.v_nodes[815], [34,183,303,338]);
+        assert_eq!(tanner.c_nodes[0], [74,172,208,353,411,568,647,753]);
+        assert_eq!(tanner.c_nodes[203], [49,151,304,378,477,610,623,754]);
+        assert_eq!(tanner.c_nodes[407], [55,159,264,381,430,550,628,806]);
     }
 
     #[test]
@@ -124,15 +125,15 @@ mod test {
         let tanner = alist_to_tanner(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/testfiles/hamming74_padded.txt")).expect("error");
         assert_eq!(tanner.v_nodes.len(), 7);
         assert_eq!(tanner.c_nodes.len(), 3);
-        assert_eq!(tanner.c_nodes[0], [1,2,4,5]);
-        assert_eq!(tanner.c_nodes[1], [1,3,4,6]);
-        assert_eq!(tanner.c_nodes[2], [2,3,4,7]);
-        assert_eq!(tanner.v_nodes[0], [1,2]);
-        assert_eq!(tanner.v_nodes[1], [1,3]);
-        assert_eq!(tanner.v_nodes[2], [2,3]);
-        assert_eq!(tanner.v_nodes[3], [1,2,3]);
-        assert_eq!(tanner.v_nodes[4], [1]);
-        assert_eq!(tanner.v_nodes[5], [2]);
-        assert_eq!(tanner.v_nodes[6], [3]);
+        assert_eq!(tanner.c_nodes[0], [0,1,3,4]);
+        assert_eq!(tanner.c_nodes[1], [0,2,3,5]);
+        assert_eq!(tanner.c_nodes[2], [1,2,3,6]);
+        assert_eq!(tanner.v_nodes[0], [0,1]);
+        assert_eq!(tanner.v_nodes[1], [0,2]);
+        assert_eq!(tanner.v_nodes[2], [1,2]);
+        assert_eq!(tanner.v_nodes[3], [0,1,2]);
+        assert_eq!(tanner.v_nodes[4], [0]);
+        assert_eq!(tanner.v_nodes[5], [1]);
+        assert_eq!(tanner.v_nodes[6], [2]);
     }
 }
