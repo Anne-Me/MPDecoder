@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::vec;
 use std::fmt;
-
 use crate::tanner_graph::TannerGraph;
 use crate::tanner_graph::Bit;
 
@@ -15,9 +14,14 @@ impl fmt::Display for DecodeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             DecodeError::WrongLength { expected, got } =>
-                write!(f, "wrong input length: expected {expected}, got {got}"),
-            DecodeError::NotConverged { .. } =>
-                write!(f, "decoder did not converge"),
+                write!(f, "wrong syndrome length: expected {expected}, got {got}"),
+            DecodeError::NotConverged { last_estimate } =>{
+                write!(f, "decoder did not converge, last estimate = ")?;
+                    for b in last_estimate {
+                        write!(f, "{b}")?;   // uses your new Display for Bit
+                    }
+                    Ok(())
+            }
         }
     }
 }
@@ -29,8 +33,11 @@ pub struct Decoder {
 }
 
 impl Decoder {
-    pub fn gallager_decode(&self, syndrome: &Vec<Bit>, max_rounds: usize) -> Result<Vec<Bit>, DecodeError> {
+    pub fn gallager_decode(&self, syndrome: &Vec<Bit>, max_rounds: usize, error_rate: Option<f32>) -> Result<Vec<Bit>, DecodeError> {
         let mut correction = vec![Bit::ZERO; self.tanner.n];
+        self.validate_length(syndrome)?;
+        let p = error_rate.unwrap_or(1.0);
+        let weight_error = (self.tanner.n as f32 * p).floor() as usize;
         
         // incoming messages are stored as tuple (from,value)
         let mut v_in_messages = vec![HashMap::new(); self.tanner.n];
@@ -48,7 +55,7 @@ impl Decoder {
         for r in 0..max_rounds  {
 
             // check candidate correction term
-            if self.check_parity_equations(&syndrome, &correction) {
+            if self.check_parity_equations(&syndrome, &correction, weight_error) {
                return Ok(correction)
             }
 
@@ -69,11 +76,15 @@ impl Decoder {
 
 
             for v in 0..self.tanner.n {
+                // correction
+                let mut ones = 0;
+                let mut zeros = 0;
                 for (ikey,_ival) in &v_in_messages[v] {
                     // all incoming messages other than i must be ONE else ZERO
                     let mut i_message = Bit::ONE;
-                    let mut ones = 0;
-                    let mut zeros = 0;
+                    if v_in_messages[v].len() == 1 {
+                        i_message = Bit::ZERO;
+                    }
                     for (xkey,xval) in &v_in_messages[v] {
                         if *xkey != *ikey {
                             i_message = i_message & *xval;
@@ -84,15 +95,20 @@ impl Decoder {
                             ones = ones + 1;
                         }
                     }
-                    // created majority along the way, update correction for next test
-                    if ones > zeros {
-                        correction[v] = Bit::ONE;
-                    } else {
-                        correction[v] = Bit::ZERO;
-                    }
+                    c_in_messages[*ikey].insert(v, i_message);
+                }
+                // created majority along the way, update correction for next test
+                if ones > zeros {
+                    correction[v] = Bit::ONE;
+                } else {
+                    correction[v] = Bit::ZERO;
                 }
             }
+        }
 
+        // last check
+        if self.check_parity_equations(syndrome, &correction, weight_error) {
+            return Ok(correction);
         }
 
         // RETURN ERROR
@@ -100,7 +116,17 @@ impl Decoder {
     }
 
 
-    fn check_parity_equations(&self, syndrome: &Vec<Bit>, correction: &Vec<Bit>) -> bool {
+    fn check_parity_equations(&self, syndrome: &Vec<Bit>, correction: &Vec<Bit>, weight_error: usize) -> bool {
+        let mut total_weight = 0;
+        for i in 0..self.tanner.n {
+            if correction[i] == Bit::ONE {
+                total_weight = total_weight + 1;
+            }
+        }
+        if (total_weight > weight_error){
+            return false;
+        }
+
         for check in 0..self.tanner.m {
             let mut res = Bit::ZERO;
             for x in &self.tanner.c_nodes[check] {
@@ -111,6 +137,13 @@ impl Decoder {
             }
         }
         return true
+    }
+
+    fn validate_length(&self, syndrome: &Vec<Bit>) -> Result<(), DecodeError> {
+        if syndrome.len() == self.tanner.m {
+            return Ok(());
+        }
+        return Err(DecodeError::WrongLength { expected: self.tanner.m, got: syndrome.len()})
     }
 
 }
@@ -151,17 +184,17 @@ mod test {
         let dec = hamming_7_4();
         let mut syndrome = vec![Bit::ZERO;dec.tanner.m];
         let mut correction = vec![Bit::ZERO;dec.tanner.n];
-        assert!(dec.check_parity_equations(&syndrome, &correction));
+        assert!(dec.check_parity_equations(&syndrome, &correction, 1));
 
         syndrome[0]= Bit::ONE;
         correction[2] = Bit::ONE;
-        assert!(!dec.check_parity_equations(&syndrome, &correction));
+        assert!(!dec.check_parity_equations(&syndrome, &correction, 1));
 
         syndrome[0]= Bit::ZERO;
         syndrome[2] = Bit::ONE;
         correction[4] = Bit::ZERO;
         correction[0] = Bit::ONE;
-        assert!(!dec.check_parity_equations(&syndrome, &correction));
+        assert!(!dec.check_parity_equations(&syndrome, &correction, 1));
 
 
         syndrome[0]= Bit::ONE;
@@ -170,7 +203,7 @@ mod test {
         correction[1] = Bit::ZERO;
         correction[4] = Bit::ONE;
         correction[5] = Bit::ZERO;
-        assert!(!dec.check_parity_equations(&syndrome, &correction));
+        assert!(!dec.check_parity_equations(&syndrome, &correction, 1));
     }
 
     #[test]
@@ -178,17 +211,17 @@ mod test {
         let dec = hamming_7_4();
         let mut syndrome = vec![Bit::ZERO;dec.tanner.m];
         let mut correction = vec![Bit::ZERO;dec.tanner.n];
-        assert!(dec.check_parity_equations(&syndrome, &correction));
+        assert!(dec.check_parity_equations(&syndrome, &correction, 7));
 
         syndrome[0]= Bit::ONE;
         correction[4] = Bit::ONE;
-        assert!(dec.check_parity_equations(&syndrome, &correction));
+        assert!(dec.check_parity_equations(&syndrome, &correction, 7));
 
         syndrome[0]= Bit::ZERO;
         syndrome[2] = Bit::ONE;
         correction[4] = Bit::ZERO;
         correction[6] = Bit::ONE;
-        assert!(dec.check_parity_equations(&syndrome, &correction));
+        assert!(dec.check_parity_equations(&syndrome, &correction, 7));
 
 
         syndrome[0]= Bit::ONE;
@@ -197,7 +230,7 @@ mod test {
         correction[1] = Bit::ONE;
         correction[4] = Bit::ONE;
         correction[6] = Bit::ZERO;
-        assert!(dec.check_parity_equations(&syndrome, &correction));
+        assert!(dec.check_parity_equations(&syndrome, &correction, 7));
     }
 
     #[test]
@@ -207,13 +240,30 @@ mod test {
         // all 0 error and syndrome
         let mut syndrome = vec![Bit::ZERO;dec.tanner.m];
         let mut exp_correction = vec![Bit::ZERO;dec.tanner.n];
-        let res = dec.gallager_decode(&syndrome, 5).unwrap();
+        let res = dec.gallager_decode(&syndrome, 5, None).unwrap();
         assert_eq!(res, exp_correction);
 
         // syndrome (0,1,0), expected correction (0,0,0,0,0,1,0)
         syndrome[1] = Bit::ONE;
         exp_correction[5] = Bit::ONE;
-        let res1 = dec.gallager_decode(&syndrome, 5).unwrap();
+        let res1 = dec.gallager_decode(&syndrome, 5, None).unwrap();
         assert_eq!(res1, exp_correction);
+    }
+
+
+    #[test]
+    fn decode_failure() {
+        // syndrome (1,1,1) cannot be decoded
+        let dec = hamming_7_4();
+        let mut syndrome = vec![Bit::ONE; dec.tanner.m];
+        let mut exp_correction = vec![Bit::ZERO, Bit::ZERO, Bit::ZERO, Bit::ZERO, Bit::ONE, Bit::ONE, Bit::ONE];
+
+        // without a error threshhold it ouputs the first codeword it finds that produces the syndrome
+        let res = dec.gallager_decode(&syndrome, 10, None);
+        assert!(matches!(res, Ok(exp_correction)));
+
+        // with error threshhold it does not converge for this syndrome
+        let res = dec.gallager_decode(&syndrome, 10, Some(0.25));
+        assert!(matches!(res, Err(DecodeError::NotConverged {last_estimate: exp_correction}) ));
     }
 }

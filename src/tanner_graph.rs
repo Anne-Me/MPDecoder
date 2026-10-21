@@ -8,6 +8,7 @@ pub struct TannerGraph {
 
 use std::ops::BitXor;
 use std::ops::BitAnd;
+use std::fmt;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Bit(bool);
@@ -28,5 +29,16 @@ impl BitAnd for Bit {
     type Output = Bit;
     fn bitand(self, rhs: Bit) -> Bit {
         Bit(self.0 & rhs.0)
+    }
+}
+
+impl fmt::Display for Bit {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Bit::ONE =>
+                write!(f, "1"),
+            Bit::ZERO =>
+                write!(f, "0"),
+        }
     }
 }
