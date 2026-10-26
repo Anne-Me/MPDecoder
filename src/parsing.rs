@@ -9,7 +9,7 @@ use crate::tanner_graph::TannerGraph;
 
 pub fn alist_to_tanner(file_path: &str) -> Result<TannerGraph, Error> {
     let file = File::open(file_path)?;
-    let mut reader = BufReader::new(file);
+    let reader = BufReader::new(file);
 
     let mut line_iter = reader.lines();
 
@@ -17,15 +17,15 @@ pub fn alist_to_tanner(file_path: &str) -> Result<TannerGraph, Error> {
     let (n,m) = sscanf!(next_line, "{} {}", usize, usize).expect("Error parsing first line.");
 
     next_line = line_iter.next().expect("Missing second line").unwrap();
-    let (dvmax,dcmax) = sscanf!(next_line, "{} {}", usize, usize).expect("Error parsing max variable node degree.");
+    let (_dvmax,_dcmax) = sscanf!(next_line, "{} {}", usize, usize).expect("Error parsing max variable node degree.");
 
     // read n integers from line
     next_line = line_iter.next().expect("Missing third line").unwrap();
-    let col_weights: Vec<usize> = collect_ints(&next_line);
+    let _col_weights: Vec<usize> = collect_ints(&next_line);
 
     // read m integers from line
     next_line = line_iter.next().expect("Missing fourth line").unwrap();
-    let row_weights: Vec<usize> = collect_ints(&next_line);
+    let _row_weights: Vec<usize> = collect_ints(&next_line);
 
     // create tanner graph with n,m
     let mut tanner = TannerGraph {
