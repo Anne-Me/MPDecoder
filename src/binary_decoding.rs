@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 use std::vec;
 use std::fmt;
+use std::write;
+use crate::binary_decoding::DecodeError::MissingErrorRate;
+use crate::binary_decoding::DecoderRule::LogRatio;
 use crate::tanner_graph::TannerGraph;
 use crate::tanner_graph::Bit;
 
@@ -8,6 +11,7 @@ use crate::tanner_graph::Bit;
 pub enum DecodeError {
     WrongLength { expected: usize, got: usize },
     NotConverged { last_estimate: Vec<Bit> },
+    MissingErrorRate,
 }
 
 impl fmt::Display for DecodeError {
@@ -22,6 +26,8 @@ impl fmt::Display for DecodeError {
                     }
                     Ok(())
             }
+            DecodeError::MissingErrorRate => 
+            write!(f, "Decoding Method LogRation Needs the Channel Error Rate as Parameter."),
         }
     }
 }
@@ -32,7 +38,105 @@ pub struct Decoder {
     tanner: TannerGraph
 }
 
+#[derive(PartialEq)]
+pub enum DecoderRule {
+    MinSum,
+    LogRatio,
+    SumProdcut,
+}
+
 impl Decoder {
+
+    pub fn decode(&self, syndrome: &Vec<Bit>, variant: DecoderRule, max_rounds: usize, error_rate: Option<f64>) -> Result<Vec<Bit>, DecodeError> {
+        let mut correction = vec![Bit::ZERO; self.tanner.n];
+        self.validate_length(syndrome)?;
+
+        if error_rate.is_none() && variant == DecoderRule::LogRatio {
+            return Err(DecodeError::MissingErrorRate);
+        }
+
+        let p = error_rate.unwrap_or(1.0);
+        let prior =(1 as f64 - p / p).ln();
+        let weight_error = (self.tanner.n as f64 * p).floor() as usize;
+
+        // incoming messages are stored as tuple (from,value)
+        let mut v_in_messages = vec![HashMap::new(); self.tanner.n];
+        let mut c_in_messages = self.init_priors(prior);
+
+        for r in 0..max_rounds  {
+
+            // check candidate correction term
+            if self.check_parity_equations(&syndrome, &correction, weight_error) {
+               return Ok(correction)
+            }
+
+            // create outgoing c messages
+            for c in 0..self.tanner.m {
+                for (jkey,_jval) in &c_in_messages[c] {
+                    // outgoing message according to logration rules
+                    let mut j_message = 1.0;
+                    for (xkey,xval) in &c_in_messages[c] { // number of a node
+                        if *xkey != *jkey {
+                            j_message = j_message * (Self::clip(*xval)/2.0).tanh();
+                        }
+                    }
+                    // apply sign
+                    if syndrome[c] == Bit::ZERO {
+                        j_message = 2.0 * j_message.atanh();
+                    } else {
+                        j_message = -2.0 * j_message.atanh();
+                    }
+                    // find place where to put the message ingoing to v_j
+                    v_in_messages[*jkey].insert(c,j_message);
+                }
+            }
+
+            // create outgoing v messages
+            for v in 0..self.tanner.n {
+                let mut sum = 0.0;
+                for (_ikey,ival) in &v_in_messages[v] {
+                    sum = sum + *ival;
+                }
+                for (jkey, jval) in &v_in_messages[v] {
+                    c_in_messages[v].insert(*jkey, prior + sum - *jval);
+                }
+                // prepare next candidate correction alogn the way
+                correction[v] = if sum + prior >= 0.0 {Bit::ZERO} else {Bit::ONE};
+            }
+        }
+
+         // last check
+        if self.check_parity_equations(syndrome, &correction, weight_error) {
+            return Ok(correction);
+        }
+        // RETURN ERROR
+        return Err(DecodeError::NotConverged { last_estimate: correction })
+
+    }
+
+    fn init_priors(&self,p: f64) -> Vec<HashMap<usize,f64>> {
+        let mut c_in_messages = vec![HashMap::new(); self.tanner.m];
+        // initialize all messages coming from v with the a priori error probability
+        for c in 0..self.tanner.m {
+            let mut neighbourhood_messages = HashMap::new();
+            for x in &self.tanner.c_nodes[c] {
+                neighbourhood_messages.insert(*x,p);
+            }
+            c_in_messages[c] = neighbourhood_messages;
+        }
+        return c_in_messages
+    }
+
+    fn clip(mut val:f64) -> f64{
+        let Lmax = 25.0;
+        if val > Lmax {
+            val = Lmax;
+        } else if val < - Lmax {
+            val = -Lmax;
+        }
+        return val
+    }
+
     pub fn gallager_decode(&self, syndrome: &Vec<Bit>, max_rounds: usize, error_rate: Option<f32>) -> Result<Vec<Bit>, DecodeError> {
         let mut correction = vec![Bit::ZERO; self.tanner.n];
         self.validate_length(syndrome)?;
@@ -265,5 +369,22 @@ mod test {
         // with error threshhold it does not converge for this syndrome
         let res = dec.gallager_decode(&syndrome, 10, Some(0.25));
         assert!(matches!(res, Err(DecodeError::NotConverged {last_estimate: exp_correction}) ));
+    }
+
+
+    // Log Ration Decoder test
+    fn decode_log_ratio() {
+        let dec = hamming_7_4();
+        let mut syndrome = vec![Bit::ZERO; dec.tanner.m];
+        let mut exp_correction = vec![Bit::ZERO; dec.tanner.n];
+
+        let res = dec.decode(&syndrome, DecoderRule::LogRatio, 10, Some(0.25));
+        assert!(matches!(res, Ok(exp_correction)));
+
+        // syndrome (0,1,0), expected correction (0,0,0,0,0,1,0)
+        syndrome[1] = Bit::ONE;
+        exp_correction[5] = Bit::ONE;
+        let res1 = dec.gallager_decode(&syndrome, 5, None).unwrap();
+        assert_eq!(res1, exp_correction);
     }
 }
