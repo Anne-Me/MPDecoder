@@ -1,0 +1,3 @@
+# code: tests/testfiles/96-3-963 (n = 96, m = 48)
+# samples: 1000  max_rounds: 50  max_weight: none  seed: 84932
+p,decoder,samples,exact,other_valid,not_converged,mean_time_us

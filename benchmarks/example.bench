@@ -1,0 +1,11 @@
+# mp_decoder benchmark configuration
+# run with: cargo run --release -- --bench benchmarks/example.bench
+
+code = tests/testfiles/96-3-963 # file in alist format
+decoders = gallager, logratio, minsum, normalizedminsum 
+error_rates = 0.01, 0.02, 0.05, 0.08 # bit flip probability
+samples = 1000
+max_rounds = 50 # optional, max number of rounds
+# max_weight = 10 # optinal, reject corrections with more bit flips than this
+seed = 84932 # optional seed
+output = benchmarks/example_results.csv # optional, csv file for the results (overwritten)

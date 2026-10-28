@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::unreachable;
 use std::vec;
 use std::fmt;
 use std::write;
@@ -25,7 +26,7 @@ impl fmt::Display for DecodeError {
                     Ok(())
             }
             DecodeError::MissingErrorRate => 
-            write!(f, "Decoding Method LogRation Needs the Channel Error Rate as Parameter."),
+            write!(f, "Decoding Method LogRation or MinSum Needs the Channel Error Rate as Parameter."),
         }
     }
 }
@@ -36,11 +37,12 @@ pub struct Decoder {
     tanner: TannerGraph
 }
 
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum DecoderRule {
     Gallager,
     LogRatio,
     MinSum,
+    NormalizedMinSum,
 }
 
 impl Decoder {
@@ -53,7 +55,7 @@ impl Decoder {
         let mut correction = vec![Bit::ZERO; self.tanner.n];
         self.validate_length(syndrome)?;
 
-        if error_rate.is_none() && variant == DecoderRule::LogRatio {
+        if error_rate.is_none() && (variant == DecoderRule::LogRatio || variant == DecoderRule::NormalizedMinSum || variant == DecoderRule::MinSum) {
             return Err(DecodeError::MissingErrorRate);
         }
 
@@ -75,18 +77,23 @@ impl Decoder {
             // create outgoing c messages
             for c in 0..self.tanner.m {
                 for (jkey,_jval) in &c_in_messages[c] {
-                    // outgoing message according to logration rules
                     let mut j_message = 1.0;
-                    for (xkey,xval) in &c_in_messages[c] { // number of a node
-                        if *xkey != *jkey {
-                            j_message = j_message * (Self::clip(*xval)/2.0).tanh();
-                        }
-                    }
-                    // apply sign
-                    if syndrome[c] == Bit::ZERO {
-                        j_message = 2.0 * j_message.atanh();
-                    } else {
-                        j_message = -2.0 * j_message.atanh();
+                    match variant {
+                        DecoderRule::LogRatio => {
+                            // outgoing message according to logration rules
+                            j_message = self.logratio_update(c, &c_in_messages, syndrome[c], *jkey);
+                        },
+                        DecoderRule::MinSum => {
+                            // outgoing messages according to the minsum rule
+                            j_message = self.minsum_update(c, &c_in_messages, syndrome[c], *jkey);
+                        },
+                        DecoderRule::NormalizedMinSum => {
+                            const ALPHA: f64 = 0.8;
+                            // outgoing messages according to the minsum rule
+                            j_message = self.minsum_update(c, &c_in_messages, syndrome[c], *jkey);
+                            j_message = j_message * ALPHA;
+                        },
+                        _ => unreachable!()
                     }
                     // find place where to put the message ingoing to v_j
                     v_in_messages[*jkey].insert(c,j_message);
@@ -137,6 +144,49 @@ impl Decoder {
             val = -LMAX;
         }
         return val
+    }
+
+    fn logratio_update(&self, c: usize, c_in_messages: &Vec<HashMap<usize,f64>>, syndrome_bit: Bit, own_key: usize) -> f64{
+        let mut j_message = 1.0;
+        for (xkey,xval) in &c_in_messages[c] { // number of a node
+             if *xkey != own_key {
+                    j_message = j_message * (Self::clip(*xval)/2.0).tanh();
+                }
+            }
+        // apply sign
+        if syndrome_bit == Bit::ZERO {
+            j_message = 2.0 * j_message.atanh();
+        } else {
+            j_message = -2.0 * j_message.atanh();
+        }
+        return j_message
+    }
+
+    fn minsum_update(&self, c: usize, c_in_messages: &Vec<HashMap<usize,f64>>, syndrome_bit: Bit, own_key: usize) -> f64{
+        let mut j_message = 1.0;
+        let mut sign = 1.0;
+        let mut min = f64::MAX;
+        for (xkey,xval) in &c_in_messages[c] { 
+             if *xkey != own_key {
+                    sign = sign * Self::sign(*xval);
+                    min = min.min(*&xval.abs())
+                }
+            }
+        // apply sign
+        if syndrome_bit == Bit::ZERO {
+            j_message = 1.0 * sign * min;
+        } else {
+            j_message = -1.0 * sign * min;
+        }
+        return j_message
+    }
+
+    fn sign(val: f64) -> f64 {
+        if val > 0.0 {
+            1.0
+        } else {
+            -1.0
+        }
     }
 
     pub fn gallager_decode(&self, syndrome: &Vec<Bit>, max_rounds: usize, max_weight: Option<usize>) -> Result<Vec<Bit>, DecodeError> {
