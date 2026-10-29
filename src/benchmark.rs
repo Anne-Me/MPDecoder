@@ -200,7 +200,7 @@ fn run_quantum(config: &BenchConfig, code_x: &str, code_z: &str) -> ExitCode {
 
     // open the output file before decoding so a bad path fails right away
     let mut out = match &config.output {
-        Some(path) => match create_csv(path, config, code_x, hx.n, hx.m, seed) { // maybe change csv writing for quantum codes
+        Some(path) => match create_csv(path, config, code_x, hx.n, hx.m, seed, QUANTUM_CSV_HEADER) {
             Ok(w) => Some(w),
             Err(e) => {
                 eprintln!("could not write output file '{path}': {e}");
@@ -216,7 +216,7 @@ fn run_quantum(config: &BenchConfig, code_x: &str, code_z: &str) -> ExitCode {
         config.max_rounds,
         config.max_weight.map_or("none".to_string(), |w| w.to_string()));
     println!();
-    println!("{:<10} {:<18} {:>9} {:>9} {:>9} {:>9} {:>12}", "p", "decoder", "exact", "equivalent", "other", "no conv.", "mean time");
+    println!("{:<10} {:<18} {:>9} {:>10} {:>9} {:>9} {:>12}", "p", "decoder", "exact", "equivalent", "other", "no conv.", "mean time");
 
 
     let decoder = QuantumDecoder::new(hx, hz);
@@ -258,9 +258,15 @@ fn run_quantum(config: &BenchConfig, code_x: &str, code_z: &str) -> ExitCode {
         }
     }
 
-
-    eprintln!("mode = quantum is not implemented yet");
-    ExitCode::from(2)
+    if let Some(mut w) = out {
+        if let Err(e) = w.flush() {
+            eprintln!("could not write output file: {e}");
+            return ExitCode::from(2);
+        }
+        println!();
+        println!("results written to {}", config.output.as_deref().unwrap());
+    }
+    ExitCode::SUCCESS
 }
 
 fn load_code(path: &str) -> Result<TannerGraph, String> {
@@ -290,7 +296,7 @@ fn run_classical(config: &BenchConfig, code_path: &str) -> ExitCode {
 
     // open the output file before decoding so a bad path fails right away
     let mut out = match &config.output {
-        Some(path) => match create_csv(path, config, code_path, n, m, seed) {
+        Some(path) => match create_csv(path, config, code_path, n, m, seed, CLASSICAL_CSV_HEADER) {
             Ok(w) => Some(w),
             Err(e) => {
                 eprintln!("could not write output file '{path}': {e}");
@@ -354,14 +360,17 @@ fn run_classical(config: &BenchConfig, code_path: &str) -> ExitCode {
 }
 
 // csv with the run parameters as '#' comment lines, then one row per (p, decoder)
-fn create_csv(path: &str, config: &BenchConfig, code_path: &str, n: usize, m: usize, seed: u64) -> std::io::Result<BufWriter<File>> {
+const CLASSICAL_CSV_HEADER: &str = "p,decoder,samples,exact,other_valid,not_converged,mean_time_us";
+const QUANTUM_CSV_HEADER: &str = "p,decoder,samples,exact,equivalent,other_valid,not_converged,mean_time_us";
+
+fn create_csv(path: &str, config: &BenchConfig, code_path: &str, n: usize, m: usize, seed: u64, header: &str) -> std::io::Result<BufWriter<File>> {
     let mut w = BufWriter::new(File::create(path)?);
     writeln!(w, "# code: {code_path} (n = {n}, m = {m})")?;
     writeln!(w, "# samples: {}  max_rounds: {}  max_weight: {}  seed: {seed}",
         config.samples,
         config.max_rounds,
         config.max_weight.map_or("none".to_string(), |w| w.to_string()))?;
-    writeln!(w, "p,decoder,samples,exact,other_valid,not_converged,mean_time_us")?;
+    writeln!(w, "{header}")?;
     Ok(w)
 }
 
@@ -404,8 +413,8 @@ fn rule_name(rule: DecoderRule) -> &'static str {
 // depolariting noise X, Z or Y with prob p/3
 // syndrome_x belongs to error_x and is measured by Hz, syndrome_z by Hx
 fn q_sample(hx: &TannerGraph, hz: &TannerGraph, p: f64, rng: &mut StdRng) -> QSample {
-    let mut error_x = vec![Bit::ZERO; hx.n];
-    let mut error_z = vec![Bit::ZERO; hx.n];
+    let mut error_x: Vec<Bit> = vec![Bit::ZERO; hx.n];
+    let mut error_z: Vec<Bit> = vec![Bit::ZERO; hx.n];
     for i in 0..hx.n {
         // one draw per qubit decides between I, X, Z and Y
         let u: f64 = rng.random();

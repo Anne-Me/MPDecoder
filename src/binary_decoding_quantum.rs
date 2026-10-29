@@ -29,8 +29,8 @@ impl QuantumDecoder {
     
     pub fn decode(&self, syndrome_x: &Vec<Bit>, syndrome_z: &Vec<Bit>, variant: DecoderRule, max_rounds: usize, error_rate: Option<f64>, max_weight: Option<usize>) -> Result<(Vec<Bit>,Vec<Bit>), DecodeError> {
         
-        let correction_x = self.DecoderX.decode(syndrome_x, variant, max_rounds, error_rate, max_weight).expect("X-Decoding Failed");
-        let correction_z = self.DecoderZ.decode(syndrome_z, variant, max_rounds, error_rate, max_weight).expect("Z-Decoding Failed");
+        let correction_x = self.DecoderX.decode(syndrome_x, variant, max_rounds, error_rate, max_weight)?;
+        let correction_z = self.DecoderZ.decode(syndrome_z, variant, max_rounds, error_rate, max_weight)?;
 
         return Ok((correction_x, correction_z))
     }

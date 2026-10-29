@@ -1,0 +1,15 @@
+# mp_decoder benchmark configuration
+# run with: cargo run --release -- --bench benchmarks/quantum_example.bench
+
+mode = quantum # optional, classical (default) or quantum
+#code = tests/testfiles/96-3-963 # file in alist format, only for mode = classical
+# for mode = quantum use two alist files of a CSS code instead of 'code':
+code_x = tests/testfiles/bb144_gross_Hx.alist # X-check matrix Hx
+code_z = tests/testfiles/bb144_gross_Hz.alist # Z-check matrix Hz
+decoders = gallager, logratio, minsum, normalizedminsum 
+error_rates = 0.01, 0.02, 0.05, 0.08 # bit flip probability
+samples = 1000
+max_rounds = 50 # optional, max number of rounds
+# max_weight = 10 # optinal, reject corrections with more bit flips than this
+seed = 84932 # optional seed
+output = benchmarks/quantum_example_results.csv # optional, csv file for the results (overwritten)

@@ -3,7 +3,7 @@
 Message-passing decoders for binary LDPC codes and quantum CSS codes, written in Rust.
 Codes are read from [alist](https://www.inference.org.uk/mackay/codes/alist.html) files and decoded on their Tanner graph.
 
-> **Work in progress:** this project is ongoing, the interface and results may still change.
+> **Work in progress:** this project is ongoing
 
 ## Features
 
@@ -15,10 +15,8 @@ Decoders (classical, syndrome based):
 
 Quantum (CSS codes):
 - Independent decoding of X and Z errors, using `Hz` for X errors and `Hx` for Z errors
+- **TODO** decoding that takes the dependency between X and Z errors into account 
 
-
-### TODO
-- Binary decoding that takes the dependency between X and Z errors into account (e.g. under depolarizing noise)
 
 ## Usage
 
@@ -60,7 +58,7 @@ A benchmark file contains one `key = value` per line; lists are comma separated 
 | `code` | classical | alist file of the code |
 | `code_x`, `code_z` | quantum | alist files of `Hx` and `Hz` |
 | `decoders` | yes | list of decoders, e.g. `logratio, minsum` |
-| `error_rates` | yes | list of bit flip probabilities, `0 < p < 1` |
+| `error_rates` | yes | list of error rates `0 < p < 1`: bit flip probability (classical) or depolarizing rate, X, Y, Z each `p/3` (quantum) |
 | `samples` | yes | number of random errors per error rate, `> 0` |
 | `max_rounds` | no | maximum number of rounds, default `50` |
 | `max_weight` | no | reject corrections with more bit flips than this |
@@ -69,7 +67,7 @@ A benchmark file contains one `key = value` per line; lists are comma separated 
 
 Relative paths are resolved from the directory the program is started in.
 
-Minimal example (see [`benchmarks/example.bench`](benchmarks/example.bench)):
+Classical example (see [`benchmarks/example.bench`](benchmarks/example.bench)):
 ```
 code = tests/testfiles/96-3-963
 decoders = gallager, logratio, minsum, normalizedminsum
@@ -79,12 +77,46 @@ seed = 42
 output = results.csv
 ```
 
+Quantum example with the [[144, 12, 12]] bivariate bicycle (gross) code (see [`benchmarks/quantum_example.bench`](benchmarks/quantum_example.bench)):
+```
+mode = quantum
+code_x = tests/testfiles/bb144_gross_Hx.alist
+code_z = tests/testfiles/bb144_gross_Hz.alist
+decoders = gallager, logratio, minsum, normalizedminsum
+error_rates = 0.01, 0.02, 0.05, 0.08
+samples = 1000
+seed = 84932
+output = benchmarks/quantum_example_results.csv
+```
+
 For each error rate and decoder the benchmark reports:
 - **exact** – correction equals the sampled error
-- **other** – correction matches the syndrome but differs from the error
+- **equivalent** (quantum only) – correction differs from the error only by a stabilizer, so it is still correct
+- **other** – correction matches the syndrome but differs from the error (quantum: a logical error)
 - **no conv.** – decoder did not converge
 - **mean time** – average time per decoding
 
 ## Example Benchmark
 
-TODO
+Quantum benchmark of the [[144, 12, 12]] gross code with depolarizing noise, independent X/Z decoding,
+1000 samples per error rate, `max_rounds = 50`, seed `84932` ([`benchmarks/quantum_example.bench`](benchmarks/quantum_example.bench)):
+
+| p | decoder | exact | equivalent | other | no conv. | mean time |
+|---|---|---:|---:|---:|---:|---:|
+| 0.01 | gallager | 99.50% | 0.00% | 0.00% | 0.50% | 121 µs |
+| 0.01 | logratio | 100.00% | 0.00% | 0.00% | 0.00% | 209 µs |
+| 0.01 | minsum | 99.40% | 0.00% | 0.00% | 0.60% | 105 µs |
+| 0.01 | normalizedminsum | 99.90% | 0.00% | 0.00% | 0.10% | 99 µs |
+| 0.02 | gallager | 97.90% | 0.10% | 0.00% | 2.00% | 195 µs |
+| 0.02 | logratio | 100.00% | 0.00% | 0.00% | 0.00% | 293 µs |
+| 0.02 | minsum | 97.90% | 0.00% | 0.00% | 2.10% | 154 µs |
+| 0.02 | normalizedminsum | 99.80% | 0.00% | 0.10% | 0.10% | 128 µs |
+| 0.05 | gallager | 56.80% | 0.30% | 0.10% | 42.80% | 775 µs |
+| 0.05 | logratio | 93.10% | 2.10% | 2.20% | 2.60% | 798 µs |
+| 0.05 | minsum | 57.70% | 0.30% | 0.20% | 41.80% | 711 µs |
+| 0.05 | normalizedminsum | 92.60% | 2.10% | 1.90% | 3.40% | 291 µs |
+| 0.08 | gallager | 13.00% | 0.00% | 0.00% | 87.00% | 1.27 ms |
+| 0.08 | logratio | 72.20% | 6.40% | 4.50% | 16.90% | 1.93 ms |
+| 0.08 | minsum | 15.00% | 0.00% | 0.00% | 85.00% | 1.08 ms |
+| 0.08 | normalizedminsum | 70.10% | 5.20% | 4.00% | 20.70% | 401 µs |
+

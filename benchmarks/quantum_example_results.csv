@@ -1,0 +1,19 @@
+# code: tests/testfiles/bb144_gross_Hx.alist (n = 144, m = 72)
+# samples: 1000  max_rounds: 50  max_weight: none  seed: 84932
+p,decoder,samples,exact,equivalent,other_valid,not_converged,mean_time_us
+0.01,gallager,1000,995,0,0,5,120.702
+0.01,logratio,1000,1000,0,0,0,207.587
+0.01,minsum,1000,994,0,0,6,106.383
+0.01,normalizedminsum,1000,999,0,0,1,99.938
+0.02,gallager,1000,979,1,0,20,195.688
+0.02,logratio,1000,1000,0,0,0,292.640
+0.02,minsum,1000,978,0,0,22,155.536
+0.02,normalizedminsum,1000,998,0,1,1,129.548
+0.05,gallager,1000,568,3,1,428,780.059
+0.05,logratio,1000,931,21,22,26,799.682
+0.05,minsum,1000,577,3,2,418,704.526
+0.05,normalizedminsum,1000,926,21,19,34,291.835
+0.08,gallager,1000,130,0,0,870,1282.194
+0.08,logratio,1000,722,64,45,169,1497.688
+0.08,minsum,1000,150,0,0,850,623.879
+0.08,normalizedminsum,1000,701,52,40,207,312.972

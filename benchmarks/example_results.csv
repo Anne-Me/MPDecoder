@@ -1,19 +1,19 @@
 # code: tests/testfiles/96-3-963 (n = 96, m = 48)
 # samples: 1000  max_rounds: 50  max_weight: none  seed: 84932
 p,decoder,samples,exact,other_valid,not_converged,mean_time_us
-0.01,gallager,1000,991,0,9,50.365
-0.01,logratio,1000,1000,0,0,74.335
-0.01,minsum,1000,991,0,9,41.031
-0.01,normalizedminsum,1000,1000,0,0,34.062
-0.02,gallager,1000,928,0,72,123.601
-0.02,logratio,1000,996,0,4,130.196
-0.02,minsum,1000,938,0,62,97.815
-0.02,normalizedminsum,1000,996,0,4,50.425
-0.05,gallager,1000,447,0,553,541.700
-0.05,logratio,1000,902,7,91,626.274
-0.05,minsum,1000,479,0,521,467.652
-0.05,normalizedminsum,1000,904,7,89,144.905
-0.08,gallager,1000,98,0,902,552.953
-0.08,logratio,1000,563,9,428,927.660
-0.08,minsum,1000,117,0,883,398.340
-0.08,normalizedminsum,1000,587,10,403,229.387
+0.01,gallager,1000,991,0,9,25.895
+0.01,logratio,1000,1000,0,0,39.924
+0.01,minsum,1000,991,0,9,21.441
+0.01,normalizedminsum,1000,1000,0,0,17.390
+0.02,gallager,1000,928,0,72,63.375
+0.02,logratio,1000,996,0,4,64.065
+0.02,minsum,1000,939,0,61,48.226
+0.02,normalizedminsum,1000,996,0,4,24.833
+0.05,gallager,1000,447,0,553,273.200
+0.05,logratio,1000,902,7,91,304.456
+0.05,minsum,1000,479,0,521,251.851
+0.05,normalizedminsum,1000,904,7,89,89.082
+0.08,gallager,1000,98,0,902,413.885
+0.08,logratio,1000,563,9,428,898.679
+0.08,minsum,1000,117,0,883,404.794
+0.08,normalizedminsum,1000,587,10,403,231.355
