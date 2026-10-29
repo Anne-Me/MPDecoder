@@ -1,7 +1,11 @@
 # mp_decoder benchmark configuration
 # run with: cargo run --release -- --bench benchmarks/example.bench
 
-code = tests/testfiles/96-3-963 # file in alist format
+mode = classical # optional, classical (default) or quantum
+code = tests/testfiles/96-3-963 # file in alist format, only for mode = classical
+# for mode = quantum use two alist files of a CSS code instead of 'code':
+# code_x = path/to/hx.alist # X-check matrix Hx
+# code_z = path/to/hz.alist # Z-check matrix Hz
 decoders = gallager, logratio, minsum, normalizedminsum 
 error_rates = 0.01, 0.02, 0.05, 0.08 # bit flip probability
 samples = 1000

@@ -11,6 +11,7 @@ pub enum DecodeError {
     WrongLength { expected: usize, got: usize },
     NotConverged { last_estimate: Vec<Bit> },
     MissingErrorRate,
+    NotCommuting,
 }
 
 impl fmt::Display for DecodeError {
@@ -18,15 +19,17 @@ impl fmt::Display for DecodeError {
         match self {
             DecodeError::WrongLength { expected, got } =>
                 write!(f, "wrong syndrome length: expected {expected}, got {got}"),
-            DecodeError::NotConverged { last_estimate } =>{
+            DecodeError::NotConverged { last_estimate } => {
                 write!(f, "decoder did not converge, last estimate = ")?;
                     for b in last_estimate {
-                        write!(f, "{b}")?;   // uses your new Display for Bit
+                        write!(f, "{b}")?; 
                     }
                     Ok(())
             }
             DecodeError::MissingErrorRate => 
-            write!(f, "Decoding Method LogRation or MinSum Needs the Channel Error Rate as Parameter."),
+                write!(f, "Decoding Method LogRation or MinSum Needs the Channel Error Rate as Parameter."),
+            DecodeError::NotCommuting => 
+                write!(f, ""),
         }
     }
 }
@@ -54,6 +57,10 @@ impl Decoder {
     pub fn decode(&self, syndrome: &Vec<Bit>, variant: DecoderRule, max_rounds: usize, error_rate: Option<f64>, max_weight: Option<usize>) -> Result<Vec<Bit>, DecodeError> {
         let mut correction = vec![Bit::ZERO; self.tanner.n];
         self.validate_length(syndrome)?;
+
+        if variant == DecoderRule::Gallager {
+            return self.gallager_decode(syndrome, max_rounds, max_weight)
+        }
 
         if error_rate.is_none() && (variant == DecoderRule::LogRatio || variant == DecoderRule::NormalizedMinSum || variant == DecoderRule::MinSum) {
             return Err(DecodeError::MissingErrorRate);
@@ -123,6 +130,8 @@ impl Decoder {
 
     }
 
+
+
     fn init_priors(&self,p: f64) -> Vec<HashMap<usize,f64>> {
         let mut c_in_messages = vec![HashMap::new(); self.tanner.m];
         // initialize all messages coming from v with the a priori error probability
@@ -189,9 +198,8 @@ impl Decoder {
         }
     }
 
-    pub fn gallager_decode(&self, syndrome: &Vec<Bit>, max_rounds: usize, max_weight: Option<usize>) -> Result<Vec<Bit>, DecodeError> {
+    fn gallager_decode(&self, syndrome: &Vec<Bit>, max_rounds: usize, max_weight: Option<usize>) -> Result<Vec<Bit>, DecodeError> {
         let mut correction = vec![Bit::ZERO; self.tanner.n];
-        self.validate_length(syndrome)?;
         let weight_error = max_weight.unwrap_or(self.tanner.n);
         
         // incoming messages are stored as tuple (from,value)

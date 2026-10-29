@@ -1,3 +1,19 @@
 # code: tests/testfiles/96-3-963 (n = 96, m = 48)
 # samples: 1000  max_rounds: 50  max_weight: none  seed: 84932
 p,decoder,samples,exact,other_valid,not_converged,mean_time_us
+0.01,gallager,1000,991,0,9,23.440
+0.01,logratio,1000,1000,0,0,36.349
+0.01,minsum,1000,991,0,9,20.215
+0.01,normalizedminsum,1000,1000,0,0,16.608
+0.02,gallager,1000,928,0,72,61.363
+0.02,logratio,1000,996,0,4,67.263
+0.02,minsum,1000,938,0,62,50.555
+0.02,normalizedminsum,1000,996,0,4,26.634
+0.05,gallager,1000,447,0,553,279.700
+0.05,logratio,1000,902,7,91,309.788
+0.05,minsum,1000,479,0,521,252.001
+0.05,normalizedminsum,1000,904,7,89,89.761
+0.08,gallager,1000,98,0,902,412.840
+0.08,logratio,1000,563,9,428,906.473
+0.08,minsum,1000,117,0,883,402.417
+0.08,normalizedminsum,1000,587,10,403,228.050

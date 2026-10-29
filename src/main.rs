@@ -6,7 +6,7 @@ use mp_decoder::binary_decoding::{DecodeError, Decoder, DecoderRule};
 use mp_decoder::parsing::alist_to_tanner;
 use mp_decoder::tanner_graph::Bit;
 
-const USAGE: &str = "usage: mp_decoder --code <alist file> [--rule gallager|logratio|minsum] \
+const USAGE: &str = "usage: mp_decoder --code <alist file> [--rule gallager|logratio|minsum|normalizedminsum] \
 [--p <error rate>] [--rounds <n>] [--max-weight <w>] <syndrome>\n       mp_decoder --bench <benchmark file>";
 
 struct Config {
@@ -55,10 +55,7 @@ fn run(config: Config) -> ExitCode {
     };
     let decoder = Decoder::new(tanner);
 
-    let result = match config.rule {
-        DecoderRule::Gallager => decoder.gallager_decode(&config.syndrome, config.max_rounds, config.max_weight),
-        rule => decoder.decode(&config.syndrome, rule, config.max_rounds, config.error_rate, config.max_weight),
-    };
+    let result = decoder.decode(&config.syndrome, config.rule, config.max_rounds, config.error_rate, config.max_weight);
 
     match result {
         Ok(correction) => {

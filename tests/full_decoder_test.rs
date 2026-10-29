@@ -100,3 +100,4 @@ fn normalized_min_sum_decode_96_3() {
 
     assert_eq!(correction, exp_correction);
 }
+
