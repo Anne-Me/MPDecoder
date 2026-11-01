@@ -51,10 +51,10 @@ pub enum DecoderRule {
 impl Decoder {
 
     pub fn new(tanner: TannerGraph) -> Decoder {
-        Decoder{tanner:tanner}
+        Decoder{tanner}
     }
 
-    pub fn decode(&self, syndrome: &Vec<Bit>, variant: DecoderRule, max_rounds: usize, error_rate: Option<f64>, max_weight: Option<usize>) -> Result<Vec<Bit>, DecodeError> {
+    pub fn decode(&self, syndrome: &[Bit], variant: DecoderRule, max_rounds: usize, error_rate: Option<f64>, max_weight: Option<usize>) -> Result<Vec<Bit>, DecodeError> {
         let mut correction = vec![Bit::ZERO; self.tanner.n];
         self.validate_length(syndrome)?;
 
@@ -67,7 +67,7 @@ impl Decoder {
         }
 
         let p = error_rate.unwrap_or(1.0);
-        let prior =((1 as f64 - p) / p).ln();
+        let prior =((1.0 - p) / p).ln();
         let weight_error =max_weight.unwrap_or(self.tanner.n);
 
         // incoming messages are stored as tuple (from,value)
@@ -77,14 +77,14 @@ impl Decoder {
         for _r in 0..max_rounds  {
 
             // check candidate correction term
-            if self.check_parity_equations(&syndrome, &correction, weight_error) {
+            if self.check_parity_equations(syndrome, &correction, weight_error) {
                return Ok(correction)
             }
 
             // create outgoing c messages
             for c in 0..self.tanner.m {
-                for (jkey,_jval) in &c_in_messages[c] {
-                    let mut j_message = 1.0;
+                for jkey in c_in_messages[c].keys() {
+                    let mut j_message;
                     match variant {
                         DecoderRule::LogRatio => {
                             // outgoing message according to logration rules
@@ -98,7 +98,7 @@ impl Decoder {
                             const ALPHA: f64 = 0.8;
                             // outgoing messages according to the minsum rule
                             j_message = self.minsum_update(c, &c_in_messages, syndrome[c], *jkey);
-                            j_message = j_message * ALPHA;
+                            j_message *= ALPHA;
                         },
                         _ => unreachable!()
                     }
@@ -110,8 +110,8 @@ impl Decoder {
             // create outgoing v messages
             for v in 0..self.tanner.n {
                 let mut sum = 0.0;
-                for (_ikey,ival) in &v_in_messages[v] {
-                    sum = sum + *ival;
+                for ival in v_in_messages[v].values() {
+                    sum += *ival;
                 }
                 for (jkey, jval) in &v_in_messages[v] {
                     c_in_messages[*jkey].insert(v, prior + sum - *jval);
@@ -126,7 +126,7 @@ impl Decoder {
             return Ok(correction);
         }
         // RETURN ERROR
-        return Err(DecodeError::NotConverged { last_estimate: correction })
+        Err(DecodeError::NotConverged { last_estimate: correction })
 
     }
 
@@ -142,24 +142,19 @@ impl Decoder {
             }
             c_in_messages[c] = neighbourhood_messages;
         }
-        return c_in_messages
+        c_in_messages
     }
 
-    fn clip(mut val:f64) -> f64{
+    fn clip(val:f64) -> f64{
         const LMAX: f64 = 25.0;
-        if val > LMAX {
-            val = LMAX;
-        } else if val < - LMAX {
-            val = -LMAX;
-        }
-        return val
+        val.clamp(-LMAX, LMAX)
     }
 
-    fn logratio_update(&self, c: usize, c_in_messages: &Vec<HashMap<usize,f64>>, syndrome_bit: Bit, own_key: usize) -> f64{
+    fn logratio_update(&self, c: usize, c_in_messages: &[HashMap<usize,f64>], syndrome_bit: Bit, own_key: usize) -> f64{
         let mut j_message = 1.0;
         for (xkey,xval) in &c_in_messages[c] { // number of a node
              if *xkey != own_key {
-                    j_message = j_message * (Self::clip(*xval)/2.0).tanh();
+                    j_message *= (Self::clip(*xval)/2.0).tanh();
                 }
             }
         // apply sign
@@ -168,26 +163,24 @@ impl Decoder {
         } else {
             j_message = -2.0 * j_message.atanh();
         }
-        return j_message
+        j_message
     }
 
-    fn minsum_update(&self, c: usize, c_in_messages: &Vec<HashMap<usize,f64>>, syndrome_bit: Bit, own_key: usize) -> f64{
-        let mut j_message = 1.0;
+    fn minsum_update(&self, c: usize, c_in_messages: &[HashMap<usize,f64>], syndrome_bit: Bit, own_key: usize) -> f64{
         let mut sign = 1.0;
         let mut min = f64::MAX;
         for (xkey,xval) in &c_in_messages[c] { 
              if *xkey != own_key {
-                    sign = sign * Self::sign(*xval);
-                    min = min.min(*&xval.abs())
+                    sign *= Self::sign(*xval);
+                    min = min.min(xval.abs())
                 }
             }
-        // apply sign
+        // apply sign and return j_message
         if syndrome_bit == Bit::ZERO {
-            j_message = 1.0 * sign * min;
+            1.0 * sign * min
         } else {
-            j_message = -1.0 * sign * min;
+            -sign * min
         }
-        return j_message
     }
 
     fn sign(val: f64) -> f64 {
@@ -198,7 +191,7 @@ impl Decoder {
         }
     }
 
-    fn gallager_decode(&self, syndrome: &Vec<Bit>, max_rounds: usize, max_weight: Option<usize>) -> Result<Vec<Bit>, DecodeError> {
+    fn gallager_decode(&self, syndrome: &[Bit], max_rounds: usize, max_weight: Option<usize>) -> Result<Vec<Bit>, DecodeError> {
         let mut correction = vec![Bit::ZERO; self.tanner.n];
         let weight_error = max_weight.unwrap_or(self.tanner.n);
         
@@ -218,13 +211,13 @@ impl Decoder {
         for _r in 0..max_rounds  {
 
             // check candidate correction term
-            if self.check_parity_equations(&syndrome, &correction, weight_error) {
+            if self.check_parity_equations(syndrome, &correction, weight_error) {
                return Ok(correction)
             }
 
             // create outgoing c messages
             for c in 0..self.tanner.m {
-                for (jkey,_jval) in &c_in_messages[c] {
+                for jkey in c_in_messages[c].keys() {
                     // outgoing message is the xor of all messages from edges that are not j and xor the syndrome bit
                     let mut j_message = syndrome[c];
                     for (xkey,xval) in &c_in_messages[c] { // number of a node
@@ -242,7 +235,7 @@ impl Decoder {
                 // correction
                 let mut ones = 0;
                 let mut zeros = 0;
-                for (ikey,_ival) in &v_in_messages[v] {
+                for ikey in v_in_messages[v].keys() {
                     // all incoming messages other than i must be ONE else ZERO
                     let mut i_message = Bit::ONE;
                     if v_in_messages[v].len() == 1 {
@@ -253,9 +246,9 @@ impl Decoder {
                             i_message = i_message & *xval;
                         }
                         if *xval == Bit::ZERO {
-                            zeros = zeros +1;
+                            zeros += 1;
                         } else {
-                            ones = ones + 1;
+                            ones += 1;
                         }
                     }
                     c_in_messages[*ikey].insert(v, i_message);
@@ -275,15 +268,15 @@ impl Decoder {
         }
 
         // RETURN ERROR
-        return Err(DecodeError::NotConverged { last_estimate: correction })
+        Err(DecodeError::NotConverged { last_estimate: correction })
     }
 
 
-    fn check_parity_equations(&self, syndrome: &Vec<Bit>, correction: &Vec<Bit>, weight_error: usize) -> bool {
+    fn check_parity_equations(&self, syndrome: &[Bit], correction: &[Bit], weight_error: usize) -> bool {
         let mut total_weight = 0;
         for i in 0..self.tanner.n {
             if correction[i] == Bit::ONE {
-                total_weight = total_weight + 1;
+                total_weight += 1;
             }
         }
         if total_weight > weight_error {
@@ -299,14 +292,14 @@ impl Decoder {
                 return false;
             }
         }
-        return true
+        true
     }
 
-    fn validate_length(&self, syndrome: &Vec<Bit>) -> Result<(), DecodeError> {
+    fn validate_length(&self, syndrome: &[Bit]) -> Result<(), DecodeError> {
         if syndrome.len() == self.tanner.m {
             return Ok(());
         }
-        return Err(DecodeError::WrongLength { expected: self.tanner.m, got: syndrome.len()})
+        Err(DecodeError::WrongLength { expected: self.tanner.m, got: syndrome.len()})
     }
 
 }

@@ -96,11 +96,10 @@ fn parse_args(args: &[String]) -> Result<Config, String> {
         }
     }
 
-    if let Some(p) = error_rate {
-        if !(p > 0.0 && p < 1.0) {
+    if let Some(p) = error_rate
+        && !(p > 0.0 && p < 1.0) {
             return Err(format!("--p must be strictly between 0 and 1, got {p}"));
         }
-    }
 
     Ok(Config {
         code_path: code_path.ok_or(format!("missing --code\n{USAGE}"))?,

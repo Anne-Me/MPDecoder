@@ -29,8 +29,8 @@ pub fn alist_to_tanner(file_path: &str) -> Result<TannerGraph, Error> {
 
     // create tanner graph with n,m
     let mut tanner = TannerGraph {
-        n: n,
-        m: m,
+        n,
+        m,
         v_nodes: vec![Vec::new();n],
         c_nodes: vec![Vec::new();m],
     };
@@ -57,11 +57,11 @@ pub fn alist_to_tanner(file_path: &str) -> Result<TannerGraph, Error> {
     }
 
 
-    return Ok(tanner)
+    Ok(tanner)
 }
 
 fn collect_ints(next_line: &str) -> Vec<usize> {
-    return next_line.split_whitespace()
+    next_line.split_whitespace()
         .map(|value| {
             value
             .parse::<usize>()

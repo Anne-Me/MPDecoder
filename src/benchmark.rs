@@ -91,8 +91,8 @@ pub fn parse_bench_file(path: &str) -> Result<BenchConfig, String> {
             "code" => code_path = Some((value.to_string(), line_nr)),
             "code_x" => code_x = Some((value.to_string(), line_nr)),
             "code_z" => code_z = Some((value.to_string(), line_nr)),
-            "decoders" => decoders = Some(parse_list(value, line_nr, |s| parse_rule(s))?),
-            "error_rates" => error_rates = Some(parse_list(value, line_nr, |s| parse_rate(s))?),
+            "decoders" => decoders = Some(parse_list(value, line_nr, parse_rule)?),
+            "error_rates" => error_rates = Some(parse_list(value, line_nr, parse_rate)?),
             "samples" => {
                 let s: usize = parse_value(value, key, line_nr)?;
                 if s == 0 {
@@ -188,7 +188,7 @@ fn run_quantum(config: &BenchConfig, code_x: &str, code_z: &str) -> ExitCode {
     println!("code_x: {code_x} (n = {}, m = {})", hx.n, hx.m);
     println!("code_z: {code_z} (n = {}, m = {})", hz.n, hz.m);
 
-    let seed = config.seed.unwrap_or_else(|| rand::random());
+    let seed = config.seed.unwrap_or_else(rand::random);
     let mut rng = StdRng::seed_from_u64(seed);
 
 
@@ -242,8 +242,8 @@ fn run_quantum(config: &BenchConfig, code_x: &str, code_z: &str) -> ExitCode {
                 100.0 * stats.not_converged as f64 / total,
                 mean_time);
 
-            if let Some(w) = out.as_mut() {
-                if let Err(e) = writeln!(w, "{p},{},{},{},{},{},{},{:.3}",
+            if let Some(w) = out.as_mut()
+                && let Err(e) = writeln!(w, "{p},{},{},{},{},{},{},{:.3}",
                     rule_name(rule),
                     samples.len(),
                     stats.exact,
@@ -254,7 +254,6 @@ fn run_quantum(config: &BenchConfig, code_x: &str, code_z: &str) -> ExitCode {
                     eprintln!("could not write output file: {e}");
                     return ExitCode::from(2);
                 }
-            }
         }
     }
 
@@ -283,7 +282,7 @@ fn run_classical(config: &BenchConfig, code_path: &str) -> ExitCode {
     };
     let (n, m) = (tanner.n, tanner.m);
 
-    let seed = config.seed.unwrap_or_else(|| rand::random());
+    let seed = config.seed.unwrap_or_else(rand::random);
     let mut rng = StdRng::seed_from_u64(seed);
 
 
@@ -333,8 +332,8 @@ fn run_classical(config: &BenchConfig, code_path: &str) -> ExitCode {
                 100.0 * stats.not_converged as f64 / total,
                 mean_time);
 
-            if let Some(w) = out.as_mut() {
-                if let Err(e) = writeln!(w, "{p},{},{},{},{},{},{:.3}",
+            if let Some(w) = out.as_mut()
+                && let Err(e) = writeln!(w, "{p},{},{},{},{},{},{:.3}",
                     rule_name(rule),
                     samples.len(),
                     stats.exact,
@@ -344,7 +343,6 @@ fn run_classical(config: &BenchConfig, code_path: &str) -> ExitCode {
                     eprintln!("could not write output file: {e}");
                     return ExitCode::from(2);
                 }
-            }
         }
     }
 
