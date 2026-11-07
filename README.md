@@ -50,7 +50,8 @@ Exit codes: `0` decoded, `1` did not converge, `2` invalid input.
 mp_decoder --bench <benchmark file>
 ```
 
-A benchmark file contains one `key = value` per line; lists are comma separated and `#` starts a comment.
+A benchmark runs the decoding for each specified decoder, for each error rate for the number of samples where the sample is a syndrome created at random according to the error pattern.
+A benchmark file contains one `key = value` per line; lists are comma separated and `#` starts a comment. 
 
 | Key | Required | Description |
 |---|---|---|
