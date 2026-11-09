@@ -143,7 +143,7 @@ fn quantum_decode_logratio_bb72() {
 
     let decoder = QuantumDecoder::new(tanner_x, tanner_z);
     let (cor_x, cor_z) = decoder
-        .decode(&syndrome_x,&syndrome_z,DecoderRule::LogRatio, 50, Some(0.01), None).unwrap();
+        .decode(&syndrome_x,&syndrome_z,DecoderRule::LogRatio, 50,Some(0.01), Some(0.01),None).unwrap();
 
     assert_eq!(cor_x, exp_correction_x);
     assert_eq!(cor_z, exp_correction_z);

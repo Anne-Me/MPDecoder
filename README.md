@@ -17,6 +17,10 @@ Quantum (CSS codes):
 - Independent decoding of X and Z errors, using `Hz` for X errors and `Hx` for Z errors
 - **TODO** decoding that takes the dependency between X and Z errors into account 
 
+Noise Models:
+- **Depolarizing** X, Y and Z errors with probability p/3 each
+- **Independent** X errors with probability p_x and Z errors with probability p_z
+- **TODO** 
 
 ## Usage
 
@@ -58,8 +62,9 @@ A benchmark file contains one `key = value` per line; lists are comma separated 
 | `mode` | no | `classical` (default) or `quantum` |
 | `code` | classical | alist file of the code |
 | `code_x`, `code_z` | quantum | alist files of `Hx` and `Hz` |
+| `noise` | no | quantum only: `depolarizing` (default) or `independent` |
 | `decoders` | yes | list of decoders, e.g. `logratio, minsum` |
-| `error_rates` | yes | list of error rates `0 < p < 1`: bit flip probability (classical) or depolarizing rate, X, Y, Z each `p/3` (quantum) |
+| `error_rates` | yes | list of error rates, each strictly between 0 and 1: bit flip probability `p` (classical), depolarizing rate `p` with X, Y, Z each `p/3` (`noise = depolarizing`), or pairs `px:pz` of independent X and Z flip probabilities (`noise = independent`) |
 | `samples` | yes | number of random errors per error rate, `> 0` |
 | `max_rounds` | no | maximum number of rounds, default `50` |
 | `max_weight` | no | reject corrections with more bit flips than this |
@@ -90,6 +95,22 @@ seed = 84932
 output = benchmarks/quantum_example_results.csv
 ```
 
+With `noise = independent` every qubit gets an X error with probability `px` and, independently, a Z error with probability `pz`
+(see [`benchmarks/quantum_independent_example.bench`](benchmarks/quantum_independent_example.bench)):
+```
+mode = quantum
+code_x = tests/testfiles/bb144_gross_Hx.alist
+code_z = tests/testfiles/bb144_gross_Hz.alist
+noise = independent
+decoders = gallager, logratio, minsum, normalizedminsum
+error_rates = 0.01:0.01, 0.01:0.05, 0.05:0.01, 0.05:0.05
+samples = 1000
+seed = 84932
+output = benchmarks/quantum_independent_example_results.csv
+```
+
+In quantum mode the results are given per `px`, `pz`, the probability that a qubit has an X or a Z component.
+
 For each error rate and decoder the benchmark reports:
 - **exact** – correction equals the sampled error
 - **equivalent** (quantum only) – correction differs from the error only by a stabilizer, so it is still correct
@@ -100,24 +121,24 @@ For each error rate and decoder the benchmark reports:
 ## Example Benchmark
 
 Quantum benchmark of the [[144, 12, 12]] gross code with depolarizing noise, independent X/Z decoding,
-1000 samples per error rate, `max_rounds = 50`, seed `84932` ([`benchmarks/quantum_example.bench`](benchmarks/quantum_example.bench)):
+1000 samples per error rate, `max_rounds = 50`, seed `84932`, decoder prior `2p/3` ([`benchmarks/quantum_example.bench`](benchmarks/quantum_example.bench)):
 
 | p | decoder | exact | equivalent | other | no conv. | mean time |
 |---|---|---:|---:|---:|---:|---:|
-| 0.01 | gallager | 99.50% | 0.00% | 0.00% | 0.50% | 61 µs |
-| 0.01 | logratio | 100.00% | 0.00% | 0.00% | 0.00% | 103 µs |
-| 0.01 | minsum | 99.40% | 0.00% | 0.00% | 0.60% | 52 µs |
-| 0.01 | normalizedminsum | 99.90% | 0.00% | 0.00% | 0.10% | 50 µs |
-| 0.02 | gallager | 97.90% | 0.10% | 0.00% | 2.00% | 99 µs |
-| 0.02 | logratio | 100.00% | 0.00% | 0.00% | 0.00% | 145 µs |
-| 0.02 | minsum | 97.80% | 0.00% | 0.00% | 2.20% | 76 µs |
-| 0.02 | normalizedminsum | 99.80% | 0.10% | 0.00% | 0.10% | 66 µs |
-| 0.05 | gallager | 56.80% | 0.40% | 0.00% | 42.80% | 390 µs |
-| 0.05 | logratio | 93.10% | 4.10% | 0.20% | 2.60% | 395 µs |
-| 0.05 | minsum | 57.70% | 0.50% | 0.00% | 41.80% | 339 µs |
-| 0.05 | normalizedminsum | 92.60% | 3.90% | 0.10% | 3.40% | 146 µs |
-| 0.08 | gallager | 13.00% | 0.00% | 0.00% | 87.00% | 635 µs |
-| 0.08 | logratio | 72.20% | 9.60% | 1.30% | 16.90% | 949 µs |
-| 0.08 | minsum | 15.00% | 0.00% | 0.00% | 85.00% | 591 µs |
-| 0.08 | normalizedminsum | 70.10% | 7.60% | 1.60% | 20.70% | 317 µs |
+| 0.01 | gallager | 99.50% | 0.00% | 0.00% | 0.50% | 149 µs |
+| 0.01 | logratio | 99.90% | 0.00% | 0.00% | 0.10% | 137 µs |
+| 0.01 | minsum | 99.40% | 0.00% | 0.00% | 0.60% | 69 µs |
+| 0.01 | normalizedminsum | 99.90% | 0.00% | 0.00% | 0.10% | 65 µs |
+| 0.02 | gallager | 97.90% | 0.10% | 0.00% | 2.00% | 124 µs |
+| 0.02 | logratio | 99.90% | 0.00% | 0.00% | 0.10% | 168 µs |
+| 0.02 | minsum | 97.60% | 0.10% | 0.00% | 2.30% | 98 µs |
+| 0.02 | normalizedminsum | 99.80% | 0.10% | 0.00% | 0.10% | 83 µs |
+| 0.05 | gallager | 56.80% | 0.40% | 0.00% | 42.80% | 487 µs |
+| 0.05 | logratio | 93.00% | 4.30% | 0.10% | 2.60% | 461 µs |
+| 0.05 | minsum | 58.00% | 0.50% | 0.00% | 41.50% | 419 µs |
+| 0.05 | normalizedminsum | 92.60% | 3.90% | 0.10% | 3.40% | 182 µs |
+| 0.08 | gallager | 13.00% | 0.00% | 0.00% | 87.00% | 796 µs |
+| 0.08 | logratio | 71.30% | 10.10% | 1.70% | 16.90% | 1148 µs |
+| 0.08 | minsum | 14.90% | 0.00% | 0.00% | 85.10% | 732 µs |
+| 0.08 | normalizedminsum | 70.10% | 7.60% | 1.60% | 20.70% | 386 µs |
 

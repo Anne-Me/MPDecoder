@@ -1,0 +1,13 @@
+# mp_decoder benchmark configuration
+# run with: cargo run --release -- --bench benchmarks/quantum_independent_example.bench
+
+mode = quantum
+code_x = tests/testfiles/bb144_gross_Hx.alist # X-check matrix Hx
+code_z = tests/testfiles/bb144_gross_Hz.alist # Z-check matrix Hz
+noise = independent # optional, depolarizing (default) or independent, only for mode = quantum
+decoders = gallager, logratio, minsum, normalizedminsum
+error_rates = 0.01:0.01, 0.01:0.05, 0.05:0.01, 0.05:0.05 # px:pz, probability of an X and of a Z error
+samples = 1000
+max_rounds = 50 # optional, max number of rounds
+seed = 84932 # optional seed
+output = benchmarks/quantum_independent_example_results.csv # optional, csv file for the results (overwritten)

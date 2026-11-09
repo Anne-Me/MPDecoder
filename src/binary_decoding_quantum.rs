@@ -25,10 +25,11 @@ impl QuantumDecoder {
     }
 
     
-    pub fn decode(&self, syndrome_x: &[Bit], syndrome_z: &[Bit], variant: DecoderRule, max_rounds: usize, error_rate: Option<f64>, max_weight: Option<usize>) -> Result<(Vec<Bit>,Vec<Bit>), DecodeError> {
+    pub fn decode(&self, syndrome_x: &[Bit], syndrome_z: &[Bit], variant: DecoderRule, max_rounds: usize, error_rate_x: Option<f64>, error_rate_z: Option<f64>, max_weight: Option<usize>) -> Result<(Vec<Bit>,Vec<Bit>), DecodeError> {
         
-        let correction_x = self.decoder_x.decode(syndrome_x, variant, max_rounds, error_rate, max_weight)?;
-        let correction_z = self.decoder_z.decode(syndrome_z, variant, max_rounds, error_rate, max_weight)?;
+        let correction_x = self.decoder_x.decode(syndrome_x, variant, max_rounds, error_rate_x, max_weight)?;
+        let correction_z = self.decoder_z.decode(syndrome_z, variant, max_rounds, error_rate_z, max_weight)?;
+        
 
         Ok((correction_x, correction_z))
     }

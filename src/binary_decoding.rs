@@ -412,15 +412,13 @@ mod test {
         // syndrome (1,1,1) cannot be decoded
         let dec = hamming_7_4();
         let syndrome = vec![Bit::ONE; dec.tanner.m];
-        let exp_correction = vec![Bit::ZERO, Bit::ZERO, Bit::ZERO, Bit::ZERO, Bit::ONE, Bit::ONE, Bit::ONE];
-
         // without a error threshhold it ouputs the first codeword it finds that produces the syndrome
         //let res = dec.gallager_decode(&syndrome, 10, None).unwrap();
         //assert_eq!(res, exp_correction);
 
         // with error threshhold it does not converge for this syndrome
         let res = dec.gallager_decode(&syndrome, 10,Some(1));
-        assert!(matches!(res, Err(DecodeError::NotConverged {last_estimate: exp_correction}) ));
+        assert!(matches!(res, Err(DecodeError::NotConverged {last_estimate: _}) ));
     }
 
     #[test]
