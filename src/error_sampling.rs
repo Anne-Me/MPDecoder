@@ -63,3 +63,13 @@ pub fn independent_xz(hx: &TannerGraph, hz: &TannerGraph, px: f64, pz: f64, rng:
     let Sample { error: error_z, syndrome: syndrome_z } = bitflip_sample(hx, pz, rng);
     QSample { error_x, syndrome_x, error_z, syndrome_z }
 }
+
+// sample from dem file specified probabilities
+pub fn dem_sample(tanner: &TannerGraph, priors: &[f64], rng: &mut StdRng) -> Sample {
+    let error: Vec<Bit> = priors
+        .iter()
+        .map(|&p| if rng.random_bool(p) { Bit::ONE } else { Bit::ZERO })
+        .collect();
+    let syndrome = syndrome_of(tanner, &error);
+    Sample {error, syndrome}
+}

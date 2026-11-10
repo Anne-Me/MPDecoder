@@ -12,7 +12,6 @@ use mp_decoder::error_sampling::{self, QSample, Sample};
 
 use crate::parse_rule;
 
-// the error rates live next to the code because their format depends on the mode
 pub enum CodeSpec {
     Classical { code_path: String, error_rates: Vec<f64> },
     Quantum { code_x: String, code_z: String, noise: Vec<QuantumNoise> },
@@ -22,6 +21,7 @@ pub enum CodeSpec {
 enum NoiseModel {
     Depolarizing,
     IndependentXZ,
+    Dem,
 }
 
 // one error rate entry of a quantum benchmark
@@ -132,6 +132,7 @@ pub fn parse_bench_file(path: &str) -> Result<BenchConfig, String> {
             "noise" => noise = Some((match value {
                 "depolarizing" => NoiseModel::Depolarizing,
                 "independent" => NoiseModel::IndependentXZ,
+                "dem" => NoiseModel::DEM,
                 _ => return Err(format!("line {line_nr}: unknown noise '{value}' (expected depolarizing or independent)")),
             }, line_nr)),
             "decoders" => decoders = Some(parse_list(value, line_nr, parse_rule)?),
@@ -181,6 +182,7 @@ pub fn parse_bench_file(path: &str) -> Result<BenchConfig, String> {
                     .into_iter()
                     .map(|(px, pz)| QuantumNoise::IndependentXZ { px, pz })
                     .collect(),
+                NoiseModel::DEM => parse_dem()
             };
             CodeSpec::Quantum { code_x, code_z, noise }
         }

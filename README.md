@@ -20,7 +20,7 @@ Quantum (CSS codes):
 Noise Models:
 - **Depolarizing** X, Y and Z errors with probability p/3 each
 - **Independent** X errors with probability p_x and Z errors with probability p_z
-- **TODO** 
+- **Stim** STIM is a software package designed to simulate circuit-level noise. This decoder can read a DEM file created from this package and then sample syndromes based on it.
 
 ## Usage
 
