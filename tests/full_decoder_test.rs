@@ -2,7 +2,7 @@ use std::vec;
 
 use mp_decoder::binary_decoding::{Decoder, DecoderRule};
 use mp_decoder::binary_decoding_quantum::QuantumDecoder;
-use mp_decoder::parsing::alist_to_tanner;
+use mp_decoder::parsing::{alist_to_tanner, parse_dem};
 use mp_decoder::tanner_graph::Bit;
 
 #[test]
@@ -147,4 +147,45 @@ fn quantum_decode_logratio_bb72() {
 
     assert_eq!(cor_x, exp_correction_x);
     assert_eq!(cor_z, exp_correction_z);
+}
+
+#[test]
+fn parse_and_decode_dem_noise() {
+    let dem = parse_dem(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/testfiles/surface_code_3_3.dem"
+    ))
+    .expect("parsing surface_code_3_3.dem");
+
+    // the file has 219 errors which will make up the vnodes
+    assert_eq!(dem.tanner.n, 219);
+    assert_eq!(dem.priors.len(), 219);
+
+    // spot check: column j is the (j+1)-th error line of the file
+    let expected = [
+        (0, 0.019118735110754),  
+        (99, 0.002006705456917),  
+        (216, 0.027462674896129), 
+        (218, 0.012620339639277), 
+    ];
+    for (j, p) in expected {
+        assert!((dem.priors[j] - p).abs() < 1e-12, "prior of column {j}: expected {p}, got {}", dem.priors[j]);
+    }
+
+    assert_eq!(dem.tanner.m, 24);
+
+    // try a trivial decoding step (syndrome with no error)
+    let decoder = Decoder::new(dem.tanner);
+    let mut syndrome = vec![Bit::ZERO; 24];
+    let correction = decoder
+        .decode_with_priors(&syndrome, DecoderRule::LogRatio, 10, &dem.priors, None)
+        .expect("zero syndrome should decode");
+    assert_eq!(correction, vec![Bit::ZERO; 219]);
+
+    // try a single bit flip, column 216 with detector 22
+    syndrome[22] = Bit::ONE;
+    let cor = decoder.decode_with_priors(&syndrome, DecoderRule::LogRatio, 10, &dem.priors, Some(1)).unwrap();
+    let mut exp_cor = vec![Bit::ZERO; 219];
+    exp_cor[216] = Bit::ONE;
+    assert_eq!(cor, exp_cor);
 }

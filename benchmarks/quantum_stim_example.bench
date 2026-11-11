@@ -1,0 +1,11 @@
+# mp_decoder benchmark configuration
+# run with: cargo run --release -- --bench benchmarks/quantum_independent_example.bench
+
+mode = quantum
+noise = dem
+dem = tests/testfiles/surface_code_3_3.dem
+decoders = gallager, logratio, minsum, normalizedminsum
+samples = 1000
+max_rounds = 50 # optional, max number of rounds
+seed = 84932 # optional seed
+output = tmp/quantum_stim_example_results.csv # optional, csv file for the results (overwritten)
