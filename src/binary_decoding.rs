@@ -54,25 +54,21 @@ impl Decoder {
         Decoder{tanner}
     }
 
-    pub fn decode(&self, syndrome: &[Bit], variant: DecoderRule, max_rounds: usize, error_rate: Option<f64>, max_weight: Option<usize>) -> Result<Vec<Bit>, DecodeError> {
-        let mut correction = vec![Bit::ZERO; self.tanner.n];
+    pub fn decode_with_priors(&self, syndrome: &[Bit], variant: DecoderRule, max_rounds: usize, error_probs: &[f64], max_weight: Option<usize>) -> Result<Vec<Bit>, DecodeError> {
         self.validate_length(syndrome)?;
 
         if variant == DecoderRule::Gallager {
             return self.gallager_decode(syndrome, max_rounds, max_weight)
         }
 
-        if error_rate.is_none() && (variant == DecoderRule::LogRatio || variant == DecoderRule::NormalizedMinSum || variant == DecoderRule::MinSum) {
-            return Err(DecodeError::MissingErrorRate);
-        }
+        let mut correction = vec![Bit::ZERO; self.tanner.n];
+        let priors: Vec<f64> = error_probs.iter().map(|p| ((1.0 - p) / p).ln()).collect();
 
-        let p = error_rate.unwrap_or(1.0);
-        let prior =((1.0 - p) / p).ln();
         let weight_error =max_weight.unwrap_or(self.tanner.n);
 
         // incoming messages are stored as tuple (from,value)
         let mut v_in_messages = vec![HashMap::new(); self.tanner.n];
-        let mut c_in_messages = self.init_priors(prior);
+        let mut c_in_messages = self.init_priors(&priors);
 
         for _r in 0..max_rounds  {
 
@@ -114,10 +110,10 @@ impl Decoder {
                     sum += *ival;
                 }
                 for (jkey, jval) in &v_in_messages[v] {
-                    c_in_messages[*jkey].insert(v, prior + sum - *jval);
+                    c_in_messages[*jkey].insert(v, priors[v] + sum - *jval);
                 }
                 // prepare next candidate correction alogn the way
-                correction[v] = if sum + prior >= 0.0 {Bit::ZERO} else {Bit::ONE};
+                correction[v] = if sum + priors[v] >= 0.0 {Bit::ZERO} else {Bit::ONE};
             }
         }
 
@@ -130,15 +126,26 @@ impl Decoder {
 
     }
 
+    pub fn decode(&self, syndrome: &[Bit], variant: DecoderRule, max_rounds: usize, error_rate: Option<f64>, max_weight: Option<usize>) -> Result<Vec<Bit>, DecodeError> {
+        if error_rate.is_none() && (variant == DecoderRule::LogRatio || variant == DecoderRule::NormalizedMinSum || variant == DecoderRule::MinSum) {
+            return Err(DecodeError::MissingErrorRate);
+        }
+
+        let p = error_rate.unwrap_or(1.0);
+        //let priors = vec![((1.0 - p) / p).ln(); self.tanner.n];
+        let priors = vec![p;self.tanner.n];
+        self.decode_with_priors(syndrome, variant, max_rounds, &priors, max_weight)
+    }
 
 
-    fn init_priors(&self,p: f64) -> Vec<HashMap<usize,f64>> {
+
+    fn init_priors(&self,p: &[f64]) -> Vec<HashMap<usize,f64>> {
         let mut c_in_messages = vec![HashMap::new(); self.tanner.m];
         // initialize all messages coming from v with the a priori error probability
         for c in 0..self.tanner.m {
             let mut neighbourhood_messages = HashMap::new();
             for x in &self.tanner.c_nodes[c] {
-                neighbourhood_messages.insert(*x,p);
+                neighbourhood_messages.insert(*x,p[*x]);
             }
             c_in_messages[c] = neighbourhood_messages;
         }
@@ -305,7 +312,6 @@ impl Decoder {
 }
 
 
-
 #[cfg(test)]
 mod test {
     use std::{assert_eq};
@@ -412,15 +418,13 @@ mod test {
         // syndrome (1,1,1) cannot be decoded
         let dec = hamming_7_4();
         let syndrome = vec![Bit::ONE; dec.tanner.m];
-        let exp_correction = vec![Bit::ZERO, Bit::ZERO, Bit::ZERO, Bit::ZERO, Bit::ONE, Bit::ONE, Bit::ONE];
-
         // without a error threshhold it ouputs the first codeword it finds that produces the syndrome
         //let res = dec.gallager_decode(&syndrome, 10, None).unwrap();
         //assert_eq!(res, exp_correction);
 
         // with error threshhold it does not converge for this syndrome
         let res = dec.gallager_decode(&syndrome, 10,Some(1));
-        assert!(matches!(res, Err(DecodeError::NotConverged {last_estimate: exp_correction}) ));
+        assert!(matches!(res, Err(DecodeError::NotConverged {last_estimate: _}) ));
     }
 
     #[test]
@@ -455,5 +459,31 @@ mod test {
         let res = dec.decode(&syndrome, DecoderRule::LogRatio, 10, Some(0.143), None).unwrap();
         assert_eq!(res, exp_correction);
 
+    }
+
+    #[test]
+    fn decode_with_priors_test() {
+        let dec = hamming_7_4();
+
+        // this is the syndrome of the error (0010000) and the error (0000011)
+        let syndrome = vec![Bit::ZERO, Bit::ONE, Bit::ONE];
+
+        // we want to select the priors such that the error (0000011) is found
+        // these are probabilities, turned into priors in the function
+        let priors = [0.001, 0.001, 0.001, 0.001, 0.001, 0.4, 0.4];
+        let mut exp_correction = vec![Bit::ZERO; dec.tanner.n];
+        exp_correction[5] = Bit::ONE;
+        exp_correction[6] = Bit::ONE;
+
+        let res = dec.decode_with_priors(&syndrome, DecoderRule::LogRatio, 10, &priors, None).unwrap();
+        assert_eq!(res, exp_correction);
+
+        // check with equal probs the decoder finds the smaller error
+        let priors_1 = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1];
+        let mut exp_correction_1 = vec![Bit::ZERO; dec.tanner.n];
+        exp_correction_1[2] = Bit::ONE;
+        
+        let res_1 = dec.decode_with_priors(&syndrome, DecoderRule::LogRatio, 10, &priors_1, None).unwrap();
+        assert_eq!(res_1, exp_correction_1);
     }
 }
