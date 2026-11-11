@@ -5,8 +5,8 @@ use std::time::{Duration, Instant};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use mp_decoder::binary_decoding::{DecodeError, Decoder, DecoderRule};
-use mp_decoder::parsing::alist_to_tanner;
-use mp_decoder::tanner_graph::TannerGraph;
+use mp_decoder::parsing::{alist_to_tanner, parse_dem, Dem};
+use mp_decoder::tanner_graph::{Bit, TannerGraph};
 use mp_decoder::binary_decoding_quantum::QuantumDecoder;
 use mp_decoder::error_sampling::{self, QSample, Sample};
 
@@ -15,6 +15,8 @@ use crate::parse_rule;
 pub enum CodeSpec {
     Classical { code_path: String, error_rates: Vec<f64> },
     Quantum { code_x: String, code_z: String, noise: Vec<QuantumNoise> },
+    // mode = quantum with noise = dem, the code is part of each dem file
+    Dem { dem_paths: Vec<String> },
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -80,7 +82,7 @@ pub struct BenchConfig {
 #[derive(Default)]
 struct Stats {
     exact: usize,         // correction == sampled error
-    equivalent: usize,    // quantum only, correction leads to correct codeword but is not the original error
+    equivalent: usize,    // quantum and dem only, correction leads to correct codeword but is not the original error
     other_valid: usize,   // correction matches the syndrome but differs from the error
     not_converged: usize,
     time: Duration,
@@ -94,6 +96,7 @@ pub fn parse_bench_file(path: &str) -> Result<BenchConfig, String> {
     let mut code_x = None;
     let mut code_z = None;
     let mut noise = None;
+    let mut dem_paths = None;
     let mut decoders = None;
     let mut error_rates = None;
     let mut samples = None;
@@ -132,9 +135,11 @@ pub fn parse_bench_file(path: &str) -> Result<BenchConfig, String> {
             "noise" => noise = Some((match value {
                 "depolarizing" => NoiseModel::Depolarizing,
                 "independent" => NoiseModel::IndependentXZ,
-                "dem" => NoiseModel::DEM,
-                _ => return Err(format!("line {line_nr}: unknown noise '{value}' (expected depolarizing or independent)")),
+                "dem" => NoiseModel::Dem,
+                _ => return Err(format!("line {line_nr}: unknown noise '{value}' (expected depolarizing, independent or dem)")),
             }, line_nr)),
+            // parsed after the loop, only allowed with noise = dem
+            "dem" => dem_paths = Some((value.to_string(), line_nr)),
             "decoders" => decoders = Some(parse_list(value, line_nr, parse_rule)?),
             // parsed after the loop, the format depends on mode and noise
             "error_rates" => error_rates = Some((value.to_string(), line_nr)),
@@ -162,13 +167,28 @@ pub fn parse_bench_file(path: &str) -> Result<BenchConfig, String> {
             if let Some((_, line_nr)) = noise {
                 return Err(format!("line {line_nr}: 'noise' is only allowed with mode = quantum"));
             }
+            if let Some((_, line_nr)) = dem_paths {
+                return Err(format!("line {line_nr}: 'dem' is only allowed with mode = quantum and noise = dem"));
+            }
             let code_path = code_path.ok_or("benchmark file is missing 'code'")?.0;
             let (rates, line_nr) = error_rates.ok_or("benchmark file is missing 'error_rates'")?;
             CodeSpec::Classical { code_path, error_rates: parse_list(&rates, line_nr, parse_rate)? }
         }
+        // noise = dem: the dem files contain the code and the error probabilities
+        "quantum" if noise.is_some_and(|(n, _)| n == NoiseModel::Dem) => {
+            let forbidden = [("code", &code_path), ("code_x", &code_x), ("code_z", &code_z), ("error_rates", &error_rates)];
+            if let Some((key, line_nr)) = forbidden.iter().find_map(|(key, v)| v.as_ref().map(|(_, l)| (key, l))) {
+                return Err(format!("line {line_nr}: '{key}' is not allowed with noise = dem, the dem file contains the code and error rates"));
+            }
+            let (paths, line_nr) = dem_paths.ok_or("noise = dem needs 'dem' (list of stim dem files)")?;
+            CodeSpec::Dem { dem_paths: parse_list(&paths, line_nr, parse_path)? }
+        }
         _ => {
             if let Some((_, line_nr)) = code_path {
                 return Err(format!("line {line_nr}: 'code' is not allowed with mode = quantum, use code_x and code_z"));
+            }
+            if let Some((_, line_nr)) = dem_paths {
+                return Err(format!("line {line_nr}: 'dem' is only allowed with noise = dem"));
             }
             let code_x = code_x.ok_or("mode = quantum needs 'code_x' (alist file of Hx)")?.0;
             let code_z = code_z.ok_or("mode = quantum needs 'code_z' (alist file of Hz)")?.0;
@@ -182,7 +202,7 @@ pub fn parse_bench_file(path: &str) -> Result<BenchConfig, String> {
                     .into_iter()
                     .map(|(px, pz)| QuantumNoise::IndependentXZ { px, pz })
                     .collect(),
-                NoiseModel::DEM => parse_dem()
+                NoiseModel::Dem => unreachable!("noise = dem has its own match arm"),
             };
             CodeSpec::Quantum { code_x, code_z, noise }
         }
@@ -225,6 +245,13 @@ fn parse_rate(s: &str) -> Result<f64, String> {
     Ok(p)
 }
 
+fn parse_path(s: &str) -> Result<String, String> {
+    if s.is_empty() {
+        return Err("file path must not be empty".to_string());
+    }
+    Ok(s.to_string())
+}
+
 // 'px:pz' for noise = independent
 fn parse_rate_pair(s: &str) -> Result<(f64, f64), String> {
     let (px, pz) = s
@@ -242,6 +269,7 @@ pub fn run_benchmark(config: BenchConfig) -> ExitCode {
     match &config.code {
         CodeSpec::Classical { code_path, error_rates } => run_classical(&config, code_path, error_rates),
         CodeSpec::Quantum { code_x, code_z, noise } => run_quantum(&config, code_x, code_z, noise),
+        CodeSpec::Dem { dem_paths } => run_dem(&config, dem_paths),
     }
 }
 
@@ -278,7 +306,7 @@ fn run_quantum(config: &BenchConfig, code_x: &str, code_z: &str, noise: &[Quantu
 
     // open the output file before decoding so a bad path fails right away
     let mut out = match &config.output {
-        Some(path) => match create_csv(path, config, code_x, hx.n, hx.m, seed, Some(noise_description), QUANTUM_CSV_HEADER) {
+        Some(path) => match create_csv(path, config, &format!("{code_x} (n = {}, m = {})", hx.n, hx.m), seed, Some(noise_description), QUANTUM_CSV_HEADER) {
             Ok(w) => Some(w),
             Err(e) => {
                 eprintln!("could not write output file '{path}': {e}");
@@ -349,6 +377,95 @@ fn run_quantum(config: &BenchConfig, code_x: &str, code_z: &str, noise: &[Quantu
     ExitCode::SUCCESS
 }
 
+// noise = dem: one classical decoder per dem file, success is judged by the logical observables
+fn run_dem(config: &BenchConfig, dem_paths: &[String]) -> ExitCode {
+    // parse all files first so mistakes in them show up before any decoding
+    let dems = match dem_paths.iter().map(|p| parse_dem(p)).collect::<Result<Vec<Dem>, String>>() {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("{e}");
+            return ExitCode::from(2);
+        }
+    };
+    for (path, dem) in dem_paths.iter().zip(&dems) {
+        println!("dem: {path} ({} error mechanisms, {} detectors)", dem.tanner.n, dem.tanner.m);
+    }
+
+    let seed = config.seed.unwrap_or_else(rand::random);
+    let mut rng = StdRng::seed_from_u64(seed);
+
+    // open the output file before decoding so a bad path fails right away
+    let mut out = match &config.output {
+        Some(path) => match create_csv(path, config, "stim detector error models, see dem column", seed, Some("stim detector error model"), DEM_CSV_HEADER) {
+            Ok(w) => Some(w),
+            Err(e) => {
+                eprintln!("could not write output file '{path}': {e}");
+                return ExitCode::from(2);
+            }
+        },
+        None => None,
+    };
+
+    println!("samples: {}  max_rounds: {}  max_weight: {}  seed: {seed}",
+        config.samples,
+        config.max_rounds,
+        config.max_weight.map_or("none".to_string(), |w| w.to_string()));
+    println!();
+    println!("{:<24} {:<18} {:>9} {:>10} {:>9} {:>9} {:>12}", "dem", "decoder", "exact", "equivalent", "other", "no conv.", "mean time");
+
+    for (path, dem) in dem_paths.iter().zip(dems) {
+        let (n, m) = (dem.tanner.n, dem.tanner.m);
+        let samples: Vec<Sample> = (0..config.samples)
+            .map(|_| error_sampling::dem_sample(&dem.tanner, &dem.priors, &mut rng))
+            .collect();
+
+        let decoder = Decoder::new(dem.tanner);
+
+        for &rule in &config.decoders {
+            let stats = match bench_one_dem(&decoder, rule, &dem.priors, &dem.observables, &samples, config) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("{} on {path}: {e}", rule_name(rule));
+                    return ExitCode::from(2);
+                }
+            };
+            let total = samples.len() as f64;
+            let mean_time = stats.time.div_f64(total.max(1.0));
+            println!("{:<24} {:<18} {:>8.2}% {:>8.2}% {:>8.2}% {:>8.2}% {:>12?}",
+                path,
+                rule_name(rule),
+                100.0 * stats.exact as f64 / total,
+                100.0 * stats.equivalent as f64 / total,
+                100.0 * stats.other_valid as f64 / total,
+                100.0 * stats.not_converged as f64 / total,
+                mean_time);
+
+            if let Some(w) = out.as_mut()
+                && let Err(e) = writeln!(w, "{path},{n},{m},{},{},{},{},{},{},{:.3}",
+                    rule_name(rule),
+                    samples.len(),
+                    stats.exact,
+                    stats.equivalent,
+                    stats.other_valid,
+                    stats.not_converged,
+                    mean_time.as_secs_f64() * 1e6) {
+                    eprintln!("could not write output file: {e}");
+                    return ExitCode::from(2);
+                }
+        }
+    }
+
+    if let Some(mut w) = out {
+        if let Err(e) = w.flush() {
+            eprintln!("could not write output file: {e}");
+            return ExitCode::from(2);
+        }
+        println!();
+        println!("results written to {}", config.output.as_deref().unwrap());
+    }
+    ExitCode::SUCCESS
+}
+
 fn load_code(path: &str) -> Result<TannerGraph, String> {
     alist_to_tanner(path).map_err(|e| format!("could not read code file '{path}': {e}"))
 }
@@ -375,7 +492,7 @@ fn run_classical(config: &BenchConfig, code_path: &str, error_rates: &[f64]) -> 
 
     // open the output file before decoding so a bad path fails right away
     let mut out = match &config.output {
-        Some(path) => match create_csv(path, config, code_path, n, m, seed, None, CLASSICAL_CSV_HEADER) {
+        Some(path) => match create_csv(path, config, &format!("{code_path} (n = {n}, m = {m})"), seed, None, CLASSICAL_CSV_HEADER) {
             Ok(w) => Some(w),
             Err(e) => {
                 eprintln!("could not write output file '{path}': {e}");
@@ -442,10 +559,12 @@ const CLASSICAL_CSV_HEADER: &str = "p,decoder,samples,exact,other_valid,not_conv
 // px/pz are the marginal probabilities of an X/Z component on a qubit
 const QUANTUM_CSV_HEADER: &str = "px,pz,decoder,samples,exact,equivalent,other_valid,not_converged,mean_time_us";
 
-#[allow(clippy::too_many_arguments)]
-fn create_csv(path: &str, config: &BenchConfig, code_path: &str, n: usize, m: usize, seed: u64, noise: Option<&str>, header: &str) -> std::io::Result<BufWriter<File>> {
+// one row per (dem file, decoder), n = error mechanisms, m = detectors
+const DEM_CSV_HEADER: &str = "dem,n,m,decoder,samples,exact,equivalent,other_valid,not_converged,mean_time_us";
+
+fn create_csv(path: &str, config: &BenchConfig, code: &str, seed: u64, noise: Option<&str>, header: &str) -> std::io::Result<BufWriter<File>> {
     let mut w = BufWriter::new(File::create(path)?);
-    writeln!(w, "# code: {code_path} (n = {n}, m = {m})")?;
+    writeln!(w, "# code: {code}")?;
     writeln!(w, "# samples: {}  max_rounds: {}  max_weight: {}  seed: {seed}",
         config.samples,
         config.max_rounds,
@@ -509,4 +628,42 @@ fn bench_one_quantum(decoder: &QuantumDecoder, rule: DecoderRule, noise: Quantum
         }
     }
     Ok(stats)
+}
+
+// exact: same error mechanisms, equivalent: other mechanisms but the same logical observables flipped,
+// other_valid: matches the syndrome but flips other logical observables (logical error)
+fn bench_one_dem(decoder: &Decoder, rule: DecoderRule, priors: &[f64], observables: &[Vec<usize>], samples: &[Sample], config: &BenchConfig) -> Result<Stats, DecodeError> {
+    let mut stats = Stats::default();
+    for s in samples {
+        let start = Instant::now();
+        let result = decoder.decode_with_priors(&s.syndrome, rule, config.max_rounds, priors, config.max_weight);
+        stats.time += start.elapsed();
+
+        match result {
+            Ok(correction) if correction == s.error => stats.exact += 1,
+            Ok(correction) if flipped_observables(observables, &correction) == flipped_observables(observables, &s.error) => stats.equivalent += 1,
+            Ok(_) => stats.other_valid += 1,
+            Err(DecodeError::NotConverged { .. }) => stats.not_converged += 1,
+            // any other error means the setup is wrong, abort the benchmark
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(stats)
+}
+
+// logical observables flipped by an error: those flipped by an odd number of its mechanisms
+fn flipped_observables(observables: &[Vec<usize>], error: &[Bit]) -> Vec<usize> {
+    let mut flipped = Vec::new();
+    for (mechanism, obs) in observables.iter().enumerate() {
+        if error[mechanism] == Bit::ONE {
+            for &o in obs {
+                match flipped.iter().position(|&x| x == o) {
+                    Some(i) => { flipped.swap_remove(i); }
+                    None => flipped.push(o),
+                }
+            }
+        }
+    }
+    flipped.sort_unstable();
+    flipped
 }
