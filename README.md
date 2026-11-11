@@ -62,7 +62,7 @@ A benchmark file contains one `key = value` per line; lists are comma separated 
 | `mode` | no | `classical` (default) or `quantum` |
 | `code` | classical | alist file of the code |
 | `code_x`, `code_z` | quantum | alist files of `Hx` and `Hz` |
-| `noise` | no | quantum only: `depolarizing` (default) or `independent` or stim|
+| `noise` | no | quantum only: `depolarizing` (default) or `independent` or `dem`|
 | `dem`| for noise=stim | dem files |
 | `error_rates` | yes (for noise!=stim) | list of error rates, each strictly between 0 and 1: bit flip probability `p` (classical), depolarizing rate `p` with X, Y, Z each `p/3` (`noise = depolarizing`), or pairs `px:pz` of independent X and Z flip probabilities (`noise = independent`) |
 | `decoders` | yes | list of decoders, e.g. `logratio, minsum` |
@@ -112,7 +112,7 @@ seed = 84932
 output = benchmarks/quantum_independent_example_results.csv
 ```
 
-With `noise = stim` you need to remove the lines for code_x, code_z and error_rates and add a line `dem = file.dem` which contains one pr more paths to dem files. 
+With `noise = stim` you need to remove the lines for code_x, code_z and error_rates and add a line `dem = file.dem` which contains one or more paths to dem files. 
 
 
 For each error rate and decoder the benchmark reports:
