@@ -62,7 +62,8 @@ A benchmark file contains one `key = value` per line; lists are comma separated 
 | `mode` | no | `classical` (default) or `quantum` |
 | `code` | classical | alist file of the code |
 | `code_x`, `code_z` | quantum | alist files of `Hx` and `Hz` |
-| `noise` | no | quantum only: `depolarizing` (default) or `independent` |
+| `noise` | no | quantum only: `depolarizing` (default) or `independent` or stim|
+| `dem`| for noise=stim | dem files |
 | `decoders` | yes | list of decoders, e.g. `logratio, minsum` |
 | `error_rates` | yes | list of error rates, each strictly between 0 and 1: bit flip probability `p` (classical), depolarizing rate `p` with X, Y, Z each `p/3` (`noise = depolarizing`), or pairs `px:pz` of independent X and Z flip probabilities (`noise = independent`) |
 | `samples` | yes | number of random errors per error rate, `> 0` |
@@ -94,8 +95,7 @@ error_rates = 0.01, 0.02, 0.05, 0.08
 samples = 1000
 seed = 84932
 output = benchmarks/quantum_example_results.csv
-max_rounds = 50 # optional, max number of rounds
-max_weight = 10 # optinal, reject corrections with more bit flips than this
+max_rounds = 50
 ```
 
 With `noise = independent` every qubit gets an X error with probability `px` and, independently, a Z error with probability `pz`
