@@ -20,7 +20,7 @@ Quantum (CSS codes):
 Noise Models:
 - **Depolarizing** X, Y and Z errors with probability p/3 each
 - **Independent** X errors with probability p_x and Z errors with probability p_z
-- **Stim** STIM is a software package designed to simulate circuit-level noise. This decoder can read a DEM file created from this package and then sample syndromes based on it.
+- **Stim** STIM is a software package designed to simulate circuit-level noise. This decoder can read a .dem file created from this package and then sample syndromes based on it.
 
 ## Usage
 
@@ -86,6 +86,7 @@ output = results.csv
 Quantum example with the [[144, 12, 12]] bivariate bicycle (gross) code (see [`benchmarks/quantum_example.bench`](benchmarks/quantum_example.bench)):
 ```
 mode = quantum
+noise = depolarizing # optional, depolarizing (default) or independent (use px:pz pairs in error_rates) or stim
 code_x = tests/testfiles/bb144_gross_Hx.alist
 code_z = tests/testfiles/bb144_gross_Hz.alist
 decoders = gallager, logratio, minsum, normalizedminsum
@@ -93,6 +94,8 @@ error_rates = 0.01, 0.02, 0.05, 0.08
 samples = 1000
 seed = 84932
 output = benchmarks/quantum_example_results.csv
+max_rounds = 50 # optional, max number of rounds
+max_weight = 10 # optinal, reject corrections with more bit flips than this
 ```
 
 With `noise = independent` every qubit gets an X error with probability `px` and, independently, a Z error with probability `pz`
@@ -109,7 +112,8 @@ seed = 84932
 output = benchmarks/quantum_independent_example_results.csv
 ```
 
-In quantum mode the results are given per `px`, `pz`, the probability that a qubit has an X or a Z component.
+With `noise = stim` you need to remove the lines for code_x, code_z and error_rates and add a line `dem = file.dem` which contains one pr more paths to dem files. 
+
 
 For each error rate and decoder the benchmark reports:
 - **exact** – correction equals the sampled error
