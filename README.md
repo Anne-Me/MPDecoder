@@ -64,8 +64,8 @@ A benchmark file contains one `key = value` per line; lists are comma separated 
 | `code_x`, `code_z` | quantum | alist files of `Hx` and `Hz` |
 | `noise` | no | quantum only: `depolarizing` (default) or `independent` or stim|
 | `dem`| for noise=stim | dem files |
+| `error_rates` | yes (for noise!=stim) | list of error rates, each strictly between 0 and 1: bit flip probability `p` (classical), depolarizing rate `p` with X, Y, Z each `p/3` (`noise = depolarizing`), or pairs `px:pz` of independent X and Z flip probabilities (`noise = independent`) |
 | `decoders` | yes | list of decoders, e.g. `logratio, minsum` |
-| `error_rates` | yes | list of error rates, each strictly between 0 and 1: bit flip probability `p` (classical), depolarizing rate `p` with X, Y, Z each `p/3` (`noise = depolarizing`), or pairs `px:pz` of independent X and Z flip probabilities (`noise = independent`) |
 | `samples` | yes | number of random errors per error rate, `> 0` |
 | `max_rounds` | no | maximum number of rounds, default `50` |
 | `max_weight` | no | reject corrections with more bit flips than this |
