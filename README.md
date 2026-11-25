@@ -1,5 +1,7 @@
 # mp_decoder
 
+[![CI](https://github.com/Anne-Me/MPDecoder/actions/workflows/ci.yml/badge.svg)](https://github.com/Anne-Me/MPDecoder/actions/workflows/ci.yml)
+
 Message-passing decoders for binary LDPC codes and quantum CSS codes, written in Rust.
 Codes are read from [alist](https://www.inference.org.uk/mackay/codes/alist.html) files and decoded on their Tanner graph.
 
